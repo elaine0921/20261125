@@ -1,0 +1,951 @@
+<!DOCTYPE html><!-- 宣告使用 HTML5 文件格式 -->
+<html lang="zh-Hant"><!-- 設定頁面語言為繁體中文 -->
+<head><!-- 開始設定頁面中繼資料 -->
+<meta charset="UTF-8"><!-- 使用 UTF-8 編碼支援繁體中文 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><!-- 讓介面適應桌機與行動裝置 -->
+<meta name="theme-color" content="#8fc9ca"><!-- 設定瀏覽器工具列的主題色彩 -->
+<title>浮光群島・漫遊地圖</title><!-- 設定瀏覽器分頁標題 -->
+<style>/* 開始撰寫畫面樣式 */
+* { box-sizing: border-box; } /* 讓元素尺寸計算包含邊框與內距 */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; } /* 讓場景鋪滿視窗並隱藏捲軸 */
+body { background: #8fc9ca; color: #23434c; font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif; } /* 設定參考圖的青綠水色與繁中介面字體 */
+body.night-mode { background: #d9dde2; } /* 夜間模式下讓整個瀏覽器畫布底色轉為淺灰色 */
+canvas { display: block; width: 100%; height: 100%; touch-action: none; } /* 讓 Three.js 畫布填滿頁面並支援觸控拖曳 */
+body > canvas { position: fixed; z-index: 0; inset: 0; } /* 固定 Three.js 畫布在所有介面按鈕下方 */
+#overlay-host { position: fixed; z-index: 2; inset: 0; pointer-events: none; } /* 將 p5.js HUD 畫布疊在 Three.js 場景上方 */
+.hud { position: fixed; z-index: 4; top: clamp(18px, 4vw, 46px); left: clamp(18px, 5vw, 64px); pointer-events: none; } /* 將標題固定在畫面左上方 */
+.eyebrow { margin: 0 0 9px; color: #4b9ba0; font-size: 10px; font-weight: 800; letter-spacing: .22em; } /* 設定標題上方的英文小標 */
+h1 { margin: 0; color: #24515a; font-size: clamp(27px, 3.8vw, 45px); font-weight: 800; letter-spacing: .08em; line-height: 1.15; } /* 設定主標題的大小與字重 */
+.subtitle { margin: 10px 0 0; color: #5e858a; font-size: clamp(12px, 1.3vw, 14px); letter-spacing: .07em; } /* 設定標題下方的場景說明 */
+.badge { position: fixed; z-index: 3; left: clamp(18px, 5vw, 64px); bottom: 24px; color: #689397; font-size: 10px; font-weight: 700; letter-spacing: .17em; pointer-events: none; } /* 顯示左下角場景識別資訊 */
+.controls { position: fixed; z-index: 6; right: clamp(15px, 3vw, 30px); bottom: 20px; display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid rgba(255,255,255,.82); border-radius: 999px; background: rgba(247,255,255,.92); box-shadow: 0 8px 26px rgba(49,105,111,.12); backdrop-filter: blur(10px); pointer-events: auto; } /* 建立置於畫布上方且可點擊的縮放工具列 */
+.controls button { width: 38px; height: 38px; border: 0; border-radius: 50%; background: #e6f5f4; color: #315d62; font: 700 22px/1 "Microsoft JhengHei", sans-serif; cursor: pointer; touch-action: manipulation; } /* 設定加減縮放按鈕外觀與點擊區域 */
+.controls button:hover { background: #d1ece8; } /* 滑鼠移入按鈕時加深底色 */
+.controls button:focus-visible { outline: 3px solid #65aaa5; outline-offset: 2px; } /* 提供鍵盤操作時的清楚焦點提示 */
+#zoom-label { min-width: 46px; color: #53777d; font-size: 11px; font-weight: 700; text-align: center; } /* 顯示目前攝影機縮放百分比 */
+#zoom-reset { width: auto; padding: 0 12px; font-size: 11px; } /* 將重設視角按鈕改成文字按鈕 */
+.profile-button { position: fixed; z-index: 6; top: 22px; right: 26px; padding: 10px 16px; border: 1px solid rgba(255,255,255,.9); border-radius: 999px; background: rgba(247,255,255,.92); color: #315d62; font: 700 12px "Microsoft JhengHei", sans-serif; cursor: pointer; box-shadow: 0 7px 22px rgba(49,105,111,.12); pointer-events: auto; } /* 顯示可隨時開啟的角色設定按鈕 */
+.camera-controls { position: fixed; z-index: 6; top: 72px; right: 24px; display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(2, 34px); gap: 3px; padding: 7px; border: 1px solid rgba(255,255,255,.88); border-radius: 15px; background: rgba(247,255,255,.9); box-shadow: 0 7px 22px rgba(49,105,111,.12); pointer-events: auto; } /* 建立鏡頭上下左右的方向控制板 */
+.camera-controls button { border: 0; border-radius: 9px; background: #e6f5f4; color: #315d62; font-size: 16px; cursor: pointer; touch-action: manipulation; } /* 設定鏡頭方向鍵的可點擊樣式 */
+.camera-controls button:hover, .profile-button:hover { background: #d1ece8; } /* 滑鼠移入鏡頭或設定按鈕時加深底色 */
+#camera-up { grid-column: 2; grid-row: 1; } /* 將鏡頭上移按鈕置於控制板中央上方 */
+#camera-left { grid-column: 1; grid-row: 2; } /* 將鏡頭左轉按鈕置於控制板左下方 */
+#camera-down { grid-column: 2; grid-row: 2; } /* 將鏡頭下移按鈕置於控制板中央下方 */
+#camera-right { grid-column: 3; grid-row: 2; } /* 將鏡頭右轉按鈕置於控制板右下方 */
+.camera-hint { position: fixed; z-index: 6; top: 151px; right: 24px; color: #4c777a; font-size: 10px; text-align: right; pointer-events: none; } /* 說明滑鼠左右鍵各自控制的視角方式 */
+.status-panel { position: fixed; z-index: 5; top: clamp(172px, 20vh, 190px); left: clamp(18px, 5vw, 64px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; width: min(390px, calc(100vw - 36px)); pointer-events: auto; } /* 將集章、金幣與日夜模式分成清楚易讀的狀態卡 */
+.status-card { min-width: 0; min-height: 76px; padding: 12px 14px; border: 1px solid rgba(255,255,255,.96); border-radius: 16px; background: rgba(250,255,255,.97); box-shadow: 0 7px 22px rgba(38,76,80,.15); color: #254c52; } /* 使用高對比淺色卡片呈現遊園資訊 */
+.status-card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; color: #496d72; font-size: 12px; font-weight: 700; } /* 對齊每張進度卡的標題和數值 */
+.status-value { color: #173f46; font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: .02em; } /* 放大集章與金幣數字提高辨識度 */
+.progress-track { height: 8px; overflow: hidden; border-radius: 999px; background: #dfe9e8; } /* 建立集章或金幣進度的淺色底槽 */
+.progress-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: #2a9d8f; transition: width .25s ease; } /* 以綠色進度條明確呈現完成比例 */
+.coin-card .progress-fill { background: #e6a521; } /* 使用金黃色進度條對應金幣狀態 */
+.mode-card { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 68px; } /* 讓日夜切換橫跨狀態卡並固定左右排列 */
+.mode-title { color: #365d62; font-size: 13px; font-weight: 800; white-space: nowrap; } /* 強調日夜模式控制標題 */
+.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid #d5e2e1; border-radius: 13px; background: #edf2f2; } /* 建立左日間右夜間的雙段切換按鈕底座 */
+.mode-switch button { min-width: 92px; min-height: 38px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; color: #52696e; font: 700 12px "Microsoft JhengHei", sans-serif; cursor: pointer; touch-action: manipulation; } /* 設定日間和夜間按鈕的尺寸與未選取狀態 */
+#mode-day[aria-pressed="true"] { background: #238a7d; color: #fff; box-shadow: 0 2px 6px rgba(26,104,94,.22); } /* 以綠色高對比底色標示目前日間模式 */
+#mode-night[aria-pressed="true"] { background: #56636f; color: #fff; box-shadow: 0 2px 6px rgba(44,55,66,.22); } /* 以深灰底色標示目前夜間模式 */
+.mode-switch button:focus-visible { outline: 3px solid #e5aa37; outline-offset: 2px; } /* 為鍵盤操作日夜按鈕提供清楚焦點 */
+#setup-layer { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(224,244,240,.3); pointer-events: none; } /* 以不攔截控制按鈕的柔和遮罩顯示角色設定卡 */
+#setup-layer[hidden] { display: none; } /* 關閉設定時移除整層介面 */
+.setup-card { width: min(460px, 100%); max-height: min(680px, calc(100vh - 36px)); overflow: auto; padding: 24px; border: 1px solid rgba(255,255,255,.92); border-radius: 22px; background: rgba(249,255,253,.97); box-shadow: 0 20px 70px rgba(31,83,82,.2); color: #315d62; pointer-events: auto; } /* 建立確實可操作且適合小螢幕的角色設定面板 */
+.setup-heading { margin: 0 0 6px; color: #24515a; font-size: 21px; } /* 設定角色設定面板標題 */
+.setup-description { margin: 0 0 18px; color: #638589; font-size: 12px; line-height: 1.6; } /* 說明進入前可調整的角色選項 */
+.setup-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } /* 將角色選項排列成緊湊雙欄 */
+.setup-fields label { display: grid; gap: 6px; color: #426c70; font-size: 12px; font-weight: 700; } /* 讓欄位標題與選項清楚對齊 */
+.setup-fields select { width: 100%; min-height: 40px; padding: 0 10px; border: 1px solid #c8dfda; border-radius: 10px; background: #fff; color: #315d62; font: 13px "Microsoft JhengHei", sans-serif; cursor: pointer; pointer-events: auto; } /* 確保所有下拉選項可被滑鼠與鍵盤選取 */
+.setup-checks { display: flex; gap: 18px; margin: 16px 0; } /* 將安全帽與背包切換項目並排顯示 */
+.setup-checks label { display: flex; align-items: center; gap: 7px; color: #426c70; font-size: 12px; cursor: pointer; } /* 提供容易點選的外觀設定核取方塊 */
+.setup-checks input { width: 16px; height: 16px; accent-color: #4c9ba0; cursor: pointer; } /* 加大核取方塊並套用場景色 */
+.setup-actions { display: flex; justify-content: flex-end; gap: 8px; } /* 將進入與取消按鈕靠右排列 */
+.setup-actions button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; font: 700 13px "Microsoft JhengHei", sans-serif; cursor: pointer; pointer-events: auto; } /* 確保角色設定操作按鈕在遮罩上方接收點擊 */
+.setup-primary { background: #3d8990; color: #fff; } /* 強調進入群島的主要操作 */
+.setup-primary:hover { background: #2e737a; } /* 滑鼠移入主要操作按鈕時加深色彩 */
+.setup-secondary { background: #e8f3f0; color: #426c70; } /* 設定返回漫遊按鈕的柔和樣式 */
+.setup-note { margin: 12px 0 0; color: #78999a; font-size: 10px; text-align: right; } /* 提醒可隨時再次開啟設定 */
+#error { position: fixed; z-index: 6; inset: auto 20px 20px; display: none; padding: 14px 18px; border-radius: 12px; background: #fff1ed; color: #9c3d2c; font-size: 14px; } /* 預留 Three.js 載入錯誤提示 */
+@media (max-width: 560px) { .hud { top: 18px; } .subtitle { max-width: 235px; } .badge { bottom: 18px; } .controls { bottom: 12px; gap: 5px; padding: 6px; } .controls button { width: 35px; height: 35px; } .profile-button { top: 14px; right: 14px; padding: 9px 12px; } .camera-controls { top: 58px; right: 12px; } .camera-hint { top: 137px; right: 12px; } .status-panel { top: 166px; width: min(360px, calc(100vw - 24px)); left: 12px; gap: 7px; } .status-card { min-height: 70px; padding: 10px 11px; } .mode-card { gap: 7px; } .mode-switch button { min-width: 78px; padding: 0 7px; } .setup-card { padding: 19px; } .setup-fields { grid-template-columns: 1fr; gap: 9px; } .setup-checks { margin: 12px 0; } } /* 在窄螢幕保留鏡頭控制、角色選單、狀態卡與縮放工具列的間距 */
+</style><!-- 結束畫面樣式設定 -->
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script><!-- 使用 importmap 載入 Three.js 0.160 -->
+<script src="libraries/p5.min.js"></script><!-- 載入本機 p5.js 並由實例模式建立主迴圈 -->
+</head><!-- 結束頁面中繼資料 -->
+<body><!-- 開始頁面可見內容 -->
+<header class="hud"><!-- 建立左上方的場景標題 -->
+<p class="eyebrow">FIVE ISLANDS · ONE LITTLE WORLD</p><!-- 顯示五座遊樂園浮島的英文小標 -->
+<h1>浮光群島</h1><!-- 顯示主標題 -->
+<p class="subtitle">遊樂園入口・摩天輪・水族館・雲霄飛車・可愛動物農場</p><!-- 說明五座遊樂園主題平台 -->
+</header><!-- 結束標題區 -->
+<section class="status-panel" aria-label="遊園狀態"><!-- 建立集章、金幣與日夜模式三種清楚的狀態顯示 -->
+<div class="status-card"><!-- 建立集章進度卡 -->
+<div class="status-card-header"><span>集章進度</span><strong class="status-value" id="stamp-count">0 / 5</strong></div><!-- 顯示已完成集章數量與總數 -->
+<div class="progress-track" id="stamp-progress-track" role="progressbar" aria-label="集章完成比例" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><span class="progress-fill" id="stamp-progress"></span></div><!-- 顯示五個集章點的完成比例 -->
+</div><!-- 結束集章進度卡 -->
+<div class="status-card coin-card"><!-- 建立金幣收集卡 -->
+<div class="status-card-header"><span>金幣</span><strong class="status-value" id="coin-count">0 / 30</strong></div><!-- 顯示已收集金幣數量與總數 -->
+<div class="progress-track" id="coin-progress-track" role="progressbar" aria-label="金幣收集比例" aria-valuemin="0" aria-valuemax="30" aria-valuenow="0"><span class="progress-fill" id="coin-progress"></span></div><!-- 顯示三十枚金幣的收集比例 -->
+</div><!-- 結束金幣收集卡 -->
+<div class="status-card mode-card"><!-- 建立日間與夜間模式切換卡 -->
+<span class="mode-title">日夜模式</span><!-- 顯示日夜切換功能名稱 -->
+<div class="mode-switch" role="group" aria-label="切換日夜模式"><!-- 依左日間右夜間排列兩個模式按鈕 -->
+<button id="mode-day" type="button" aria-pressed="true">☀ 日間</button><!-- 點選以切換至日間模式 -->
+<button id="mode-night" type="button" aria-pressed="false">☾ 夜間</button><!-- 點選以切換至夜間模式 -->
+</div><!-- 結束雙段日夜切換按鈕 -->
+</div><!-- 結束日夜模式切換卡 -->
+</section><!-- 結束三種遊園狀態顯示 -->
+<div id="overlay-host" aria-hidden="true"></div><!-- 建立 p5.js 繪製集章標籤與介面資訊的圖層 -->
+<div class="badge">AMUSEMENT PARK&nbsp; / &nbsp;FIVE DISTRICTS</div><!-- 顯示五大遊樂園區識別資訊 -->
+<nav class="controls" aria-label="場景縮放控制"><!-- 建立可直接操作的縮放控制列 -->
+<button id="zoom-out" type="button" aria-label="縮小場景" title="縮小">−</button><!-- 建立縮小按鈕 -->
+<span id="zoom-label">100%</span><!-- 顯示攝影機目前的縮放比例 -->
+<button id="zoom-in" type="button" aria-label="放大場景" title="放大">＋</button><!-- 建立放大按鈕 -->
+<button id="zoom-reset" type="button" aria-label="重設視角">重設</button><!-- 建立一鍵恢復預設視角按鈕 -->
+</nav><!-- 結束縮放控制列 -->
+<button id="settings-open" class="profile-button" type="button">角色設定</button><!-- 建立進入前與漫遊中都能開啟的角色設定按鈕 -->
+<nav class="camera-controls" aria-label="攝影機方向控制"><!-- 建立可用滑鼠點擊的攝影機方向鍵 -->
+<button id="camera-up" type="button" aria-label="鏡頭上移" title="鏡頭上移">▲</button><!-- 建立攝影機仰角上移按鈕 -->
+<button id="camera-left" type="button" aria-label="鏡頭左轉" title="鏡頭左轉">◀</button><!-- 建立攝影機向左環繞按鈕 -->
+<button id="camera-down" type="button" aria-label="鏡頭下移" title="鏡頭下移">▼</button><!-- 建立攝影機仰角下移按鈕 -->
+<button id="camera-right" type="button" aria-label="鏡頭右轉" title="鏡頭右轉">▶</button><!-- 建立攝影機向右環繞按鈕 -->
+</nav><!-- 結束攝影機方向控制 -->
+<p class="camera-hint">左鍵轉地圖・右鍵轉鏡頭・N 切換日夜</p><!-- 提示地圖、鏡頭與日夜模式操作方式 -->
+<section id="setup-layer" aria-label="進入群島前的角色設定"><!-- 建立初始角色設定遮罩 -->
+<form id="avatar-form" class="setup-card"><!-- 建立可操作的角色與同行動物設定表單 -->
+<h2 class="setup-heading">準備開始漫遊</h2><!-- 顯示進入前的設定標題 -->
+<p class="setup-description">挑選同行夥伴與造型，設定完成後即可自由探索五座遊樂園島嶼。</p><!-- 說明角色設定與進入方式 -->
+<div class="setup-fields"><!-- 開始排列角色造型選項 -->
+<label for="companion-select">同行小動物<select id="companion-select" name="companion"><option value="dog">小狗</option><option value="cat">小貓</option><option value="rabbit">兔子</option><option value="none">不帶動物</option></select></label><!-- 提供寵物種類選擇 -->
+<label for="outfit-select">穿著樣式<select id="outfit-select" name="outfit"><option value="explorer">探險藍衣</option><option value="sunny">活力黃衣</option><option value="garden">花園綠衣</option><option value="rose">暖色外套</option></select></label><!-- 提供多種服裝配色選擇 -->
+<label for="hair-style-select">頭髮樣式<select id="hair-style-select" name="hairStyle"><option value="short">俐落短髮</option><option value="long">柔順長髮</option><option value="curly">蓬鬆捲髮</option></select></label><!-- 提供短髮、長髮與捲髮造型 -->
+<label for="hair-color-select">頭髮顏色<select id="hair-color-select" name="hairColor"><option value="#45352f">深棕色</option><option value="#78533d">栗子色</option><option value="#d6ad62">金棕色</option><option value="#504b70">紫黑色</option></select></label><!-- 提供頭髮顏色選擇 -->
+</div><!-- 結束角色造型選項 -->
+<div class="setup-checks"><!-- 開始顯示配件勾選項目 -->
+<label><input id="helmet-option" name="helmet" type="checkbox">戴安全帽</label><!-- 讓進入者選擇是否佩戴安全帽 -->
+<label><input id="backpack-option" name="backpack" type="checkbox" checked>背上背包</label><!-- 讓進入者選擇是否攜帶背包 -->
+</div><!-- 結束配件勾選項目 -->
+<div class="setup-actions"><!-- 開始顯示進入與取消操作 -->
+<button id="settings-cancel" class="setup-secondary" type="button" hidden>返回漫遊</button><!-- 進入後可關閉設定並返回場景 -->
+<button id="enter-world" class="setup-primary" type="submit">進入群島</button><!-- 套用造型並正式進入場景 -->
+</div><!-- 結束表單操作按鈕 -->
+<p class="setup-note">進入後可再次開啟角色設定更換造型。</p><!-- 提醒進入後仍可修改造型 -->
+</form><!-- 結束角色設定表單 -->
+</section><!-- 結束進入前角色設定介面 -->
+<div id="error" role="alert"></div><!-- 提供載入錯誤時的明確訊息 -->
+<script type="module"> // 開始以 ES 模組載入並建立 Three.js 場景
+import * as THREE from "three"; // 匯入 Three.js 核心函式庫
+const errorBox = document.querySelector("#error"); // 取得錯誤訊息顯示區
+try { // 捕捉並呈現場景初始化錯誤
+const scene = new THREE.Scene(); // 建立三維場景容器
+scene.background = new THREE.Color("#8fc9ca"); // 設定接近參考圖的青綠色天空水面背景
+scene.fog = new THREE.Fog("#8fc9ca", 70, 145); // 將遠景霧色融合到青綠色水面
+const camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 220); // 擴大正交視野以完整呈現加大的遊樂園群島
+camera.position.set(32, 42, 34); // 將攝影機放在右上方斜俯視位置
+camera.lookAt(0, 0, 0); // 讓攝影機朝向五座遊樂園平台中央
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); // 建立具抗鋸齒效果的 WebGL 繪圖器
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制像素比例兼顧畫質與效能
+renderer.setSize(window.innerWidth, window.innerHeight); // 將畫布尺寸設定為視窗大小
+renderer.shadowMap.enabled = true; // 啟用場景陰影
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 使用柔和的 PCF 陰影
+renderer.outputColorSpace = THREE.SRGBColorSpace; // 使用標準 sRGB 色彩空間
+renderer.toneMapping = THREE.ACESFilmicToneMapping; // 套用柔和電影感色調映射
+renderer.toneMappingExposure = 1.12; // 微調整體場景曝光亮度
+document.body.appendChild(renderer.domElement); // 將繪圖畫布加入頁面
+const hemi = new THREE.HemisphereLight("#f4ffff", "#729ca3", 2.05); // 建立天空與水面反射的環境光
+scene.add(hemi); // 將環境光加入主場景
+const sun = new THREE.DirectionalLight("#fff4d6", 3.1); // 建立暖色調的主方向光
+sun.position.set(-24, 34, 28); // 設定能照亮大型島群的日光方向
+sun.castShadow = true; // 開啟日光投射陰影
+sun.shadow.mapSize.set(2048, 2048); // 提高陰影貼圖解析度
+sun.shadow.camera.left = -52; // 擴大陰影攝影機左界
+sun.shadow.camera.right = 52; // 擴大陰影攝影機右界
+sun.shadow.camera.top = 52; // 擴大陰影攝影機上界
+sun.shadow.camera.bottom = -52; // 擴大陰影攝影機下界
+sun.shadow.bias = -0.00025; // 降低陰影表面失真的機率
+sun.shadow.radius = 5; // 增加陰影邊緣的柔和度
+scene.add(sun); // 將主方向光加入場景
+const world = new THREE.Group(); // 建立容納五座平台與橋樑的可旋轉群組
+scene.add(world); // 將整個群島群組加入主場景
+const walkRects = []; // 保存角色允許行走的平台與橋面矩形範圍
+const blockRects = []; // 保存建築、列車與其他矩形障礙物範圍
+const blockCircles = []; // 保存樹木、燈柱與動物等圓形障礙物範圍
+function addWalkRect(x, z, halfWidth, halfDepth, rotation = 0) { walkRects.push({ x, z, halfWidth, halfDepth, rotation }); } // 登記平台或橋面的中心、半尺寸與旋轉角
+function addBlockRect(x, z, halfWidth, halfDepth, rotation = 0) { const rect = { x, z, halfWidth, halfDepth, rotation }; blockRects.push(rect); return rect; } // 登記並回傳可更新的矩形碰撞範圍
+function addBlockCircle(x, z, radius) { blockCircles.push({ x, z, radius }); } // 登記圓形障礙的圓心與半徑
+const water = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), new THREE.MeshStandardMaterial({ color: "#8fc9ca", roughness: 0.42, metalness: 0.02 })); // 建立參考圖色調的寬闊青綠水面
+water.rotation.x = -Math.PI / 2; // 將水面轉成水平平面
+water.position.y = -0.42; // 將水面放在平台下方
+water.receiveShadow = true; // 讓水面承接浮島陰影
+scene.add(water); // 將水面加入主場景
+const stripeCanvas = document.createElement("canvas"); // 建立繪製斜紋材質的離屏畫布
+stripeCanvas.width = 256; // 設定斜紋貼圖寬度
+stripeCanvas.height = 256; // 設定斜紋貼圖高度
+const stripeContext = stripeCanvas.getContext("2d"); // 取得 2D 繪圖環境
+stripeContext.fillStyle = "#f3c64f"; // 設定安全黃斜紋底色
+stripeContext.fillRect(0, 0, 256, 256); // 將貼圖底色填滿為黃色
+stripeContext.strokeStyle = "#263c3a"; // 設定斜紋為深色
+stripeContext.lineWidth = 28; // 設定斜紋粗細
+for (let offset = -256; offset < 512; offset += 62) { stripeContext.beginPath(); stripeContext.moveTo(offset, 0); stripeContext.lineTo(offset - 256, 256); stripeContext.stroke(); } // 繪製重複黃黑斜線紋理
+const stripeTexture = new THREE.CanvasTexture(stripeCanvas); // 將離屏畫布轉為 Three.js 貼圖
+stripeTexture.wrapS = THREE.RepeatWrapping; // 允許斜紋貼圖水平重複
+stripeTexture.wrapT = THREE.RepeatWrapping; // 允許斜紋貼圖垂直重複
+stripeTexture.colorSpace = THREE.SRGBColorSpace; // 為斜紋貼圖設定正確色彩空間
+const sideStripeMat = new THREE.MeshStandardMaterial({ map: stripeTexture, roughness: 0.82 }); // 建立平台側面斜紋材質
+const platformGroundMats = { hub: new THREE.MeshStandardMaterial({ color: "#e9c46a", roughness: 0.94 }), park: new THREE.MeshStandardMaterial({ color: "#f7b1b0", roughness: 0.94 }), aquarium: new THREE.MeshStandardMaterial({ color: "#8ecae6", roughness: 0.88 }), coaster: new THREE.MeshStandardMaterial({ color: "#e76f51", roughness: 0.9 }), farm: new THREE.MeshStandardMaterial({ color: "#cad182", roughness: 0.95 }) }; // 依指定粉紅、湖藍與橄欖淺綠底色呈現主題平台
+const pathMat = new THREE.MeshStandardMaterial({ color: "#eadbb7", roughness: 0.94 }); // 建立米色步道材質
+const woodMat = new THREE.MeshStandardMaterial({ color: "#a96849", roughness: 0.88 }); // 建立橋面與長椅木質材質
+const darkWoodMat = new THREE.MeshStandardMaterial({ color: "#76503b", roughness: 0.9 }); // 建立深色木質支架材質
+const railMat = new THREE.MeshStandardMaterial({ color: "#f0c64e", roughness: 0.48, metalness: 0.1 }); // 建立黃色橋欄杆材質
+const platformBottomMat = new THREE.MeshStandardMaterial({ color: "#456f68", roughness: 0.95 }); // 建立平台底面共用的深海綠材質
+const tileLineMat = new THREE.MeshStandardMaterial({ color: "#c5b99f", roughness: 1 }); // 建立廣場地磚細縫材質
+const crosswalkMat = new THREE.MeshStandardMaterial({ color: "#f7f3e8", roughness: 0.9 }); // 建立斑馬線與球場共用的淺色標線材質
+const boardwalkMat = new THREE.MeshStandardMaterial({ color: "#b78352", roughness: 0.9 }); // 建立河濱木棧道地板材質
+const bridgeDeckMat = new THREE.MeshStandardMaterial({ color: "#434b50", roughness: 0.86 }); // 建立深灰色橋面材質
+const busRedMat = new THREE.MeshStandardMaterial({ color: "#c8102e", roughness: 0.52, metalness: 0.08 }); // 建立倫敦觀光巴士鮮明的紅色車身
+const busBlackMat = new THREE.MeshStandardMaterial({ color: "#17191b", roughness: 0.58, metalness: 0.18 }); // 建立雙層巴士黑色底盤、車窗框與輪胎
+const goldAccentMat = new THREE.MeshStandardMaterial({ color: "#e9c46a", roughness: 0.4, metalness: 0.35 }); // 建立摩天輪與巴士共用的金色細節材質
+const pinkLeafMats = ["#d88b9c", "#e7a0ad", "#cf8297"].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true })); // 建立公園粉色觀賞樹冠色票
+const schoolWallMat = new THREE.MeshStandardMaterial({ color: "#d5c8a9", roughness: 0.88 }); // 建立入口與農場建築的淺米色牆面材質
+const aquariumWallMat = new THREE.MeshStandardMaterial({ color: "#e8f4ef", roughness: 0.72 }); // 建立水族館清爽的海沫白色外牆
+const aquariumAccentMat = new THREE.MeshStandardMaterial({ color: "#2a9d8f", roughness: 0.58, metalness: 0.08 }); // 建立水族館辨識度高的海綠色外框
+const C = { deepTeal: "#264653", teal: "#2a9d8f", yellow: "#e9c46a", orange: "#f4a261", coral: "#e76f51" }; // 建立符合五大平台功能的繽紛主題調色盤
+const roofOrangeMat = new THREE.MeshStandardMaterial({ color: C.orange, roughness: 0.8 }); // 讓所有共用橘色裝飾同步使用調色盤顏色
+const trunkMat = new THREE.MeshStandardMaterial({ color: "#895b43", roughness: 1 }); // 建立樹幹材質
+const leafMats = ["#388d72", "#50a77b", "#6dbb83", "#78b789"].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true })); // 建立低多邊形樹葉色票
+const windowMat = new THREE.MeshStandardMaterial({ color: "#b9e8e7", emissive: "#417e88", emissiveIntensity: 0.15, roughness: 0.3 }); // 建立城市建築窗戶材質
+const boxGeo = new THREE.BoxGeometry(1, 1, 1); // 建立共用方塊模型
+const sphereGeo = new THREE.IcosahedronGeometry(1, 1); // 建立共用低多邊形球體模型
+const treeMaterials = leafMats; // 將低多邊形樹葉材質設為樹木色票
+const platforms = [{ name: "遊樂園入口", type: "hub", x: 0, z: 0, width: 19, depth: 19 }, { name: "摩天輪", type: "park", x: -34, z: 0, width: 21, depth: 20 }, { name: "水族館", type: "aquarium", x: 0, z: -34, width: 21, depth: 20 }, { name: "雲霄飛車", type: "coaster", x: 0, z: 34, width: 21, depth: 20 }, { name: "可愛動物農場", type: "farm", x: 34, z: 0, width: 22, depth: 20 }]; // 擴大五座主題平台並拉開距離，保留更多步行空間
+for (const platform of platforms) addWalkRect(platform.x, platform.z, platform.width / 2, platform.depth / 2); // 將五座平台外框加入角色可行走矩形
+const bridgeRoutes = platforms.slice(1).map(platform => { const length = Math.hypot(platform.x, platform.z); const directionX = platform.x / length; const directionZ = platform.z / length; const startInset = Math.min(platforms[0].width / 2 / Math.max(Math.abs(directionX), 0.0001), platforms[0].depth / 2 / Math.max(Math.abs(directionZ), 0.0001)) - 0.08; const endInset = Math.min(platform.width / 2 / Math.max(Math.abs(directionX), 0.0001), platform.depth / 2 / Math.max(Math.abs(directionZ), 0.0001)) - 0.08; return { start: new THREE.Vector2(0, 0), end: new THREE.Vector2(platform.x, platform.z), startInset, endInset, halfWidth: 2.3 }; }); // 依放大後的平台邊界規劃可供公車與行人分流通行的寬橋
+function addBox(parent, material, position, size, rotationY = 0) { // 建立方塊並設定陰影與位置
+const mesh = new THREE.Mesh(boxGeo, material); // 建立方塊網格物件
+mesh.position.set(position[0], position[1], position[2]); // 設定方塊所在位置
+mesh.scale.set(size[0], size[1], size[2]); // 設定方塊的寬、高、深
+mesh.rotation.y = rotationY; // 設定方塊水平旋轉角度
+mesh.castShadow = true; // 讓方塊投射柔和陰影
+mesh.receiveShadow = true; // 讓方塊表面承接陰影
+parent.add(mesh); // 將方塊加入指定群組
+return mesh; // 回傳網格供後續調整
+} // 結束方塊建立函式
+function addCylinder(parent, material, position, radiusTop, radiusBottom, height, segments = 8) { // 建立低多邊形圓柱或圓錐
+const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, segments), material); // 建立指定形狀的圓柱網格
+mesh.position.set(position[0], position[1], position[2]); // 設定圓柱所在位置
+mesh.castShadow = true; // 讓圓柱投射柔和陰影
+mesh.receiveShadow = true; // 讓圓柱表面承接陰影
+parent.add(mesh); // 將圓柱加入指定群組
+return mesh; // 回傳圓柱供後續操作
+} // 結束圓柱建立函式
+function addTree(parent, x, z, size = 1, canopyMaterials = treeMaterials) { // 用圓柱樹幹與可選色系的多面球冠組成低多邊形樹
+addBlockCircle(parent.position.x + x, parent.position.z + z, 0.43 * size); // 將樹幹底部登記為圓形障礙物
+addCylinder(parent, trunkMat, [x, 0.55 + size * 0.45, z], 0.15 * size, 0.2 * size, 0.9 * size, 7); // 放置略帶錐度的樹幹
+const crownMat = canopyMaterials[Math.floor(Math.random() * canopyMaterials.length)]; // 隨機挑選符合區域主題的樹冠色階
+for (let tier = 0; tier < 3; tier += 1) { const crown = new THREE.Mesh(sphereGeo, crownMat); crown.position.set(x + (tier - 1) * 0.09 * size, 1.24 * size + 0.43 * tier * size, z + (tier % 2 ? 0.07 : -0.05) * size); crown.scale.set((0.7 - tier * 0.1) * size, (0.6 - tier * 0.07) * size, (0.68 - tier * 0.1) * size); crown.castShadow = true; crown.receiveShadow = true; parent.add(crown); } // 疊放多層多面球體形成樹冠
+} // 結束低多邊形樹木函式
+function addPine(parent, x, z, size = 1) { // 用層疊圓錐與圓柱組成河岸針葉樹
+addBlockCircle(parent.position.x + x, parent.position.z + z, 0.42 * size); // 將松樹底部登記為圓形障礙物
+addCylinder(parent, trunkMat, [x, 0.95 * size, z], 0.12 * size, 0.16 * size, 1.35 * size, 7); // 建立針葉樹木質樹幹
+const foliage = leafMats[1]; // 選用沉穩的河岸綠色樹冠
+for (let tier = 0; tier < 3; tier += 1) { const cone = new THREE.Mesh(new THREE.ConeGeometry((0.78 - tier * 0.14) * size, 1.15 * size, 7), foliage); cone.position.set(x, (1.35 + tier * 0.58) * size, z); cone.castShadow = true; cone.receiveShadow = true; parent.add(cone); } // 層疊圓錐形樹冠呈現低多邊形松樹
+} // 結束河岸松樹建立函式
+function addBuilding(parent, x, z, width, depth, height, color, tech = false) { // 建立現代城市或科技城建築與窗戶
+addBlockRect(parent.position.x + x, parent.position.z + z, width / 2 + 0.18, depth / 2 + 0.18); // 將建築底部登記為矩形障礙物
+const building = new THREE.Group(); // 建立建築專屬群組
+building.position.set(x, 0.47, z); // 將建築底部放到平台草坪上
+const facade = new THREE.MeshStandardMaterial({ color, roughness: 0.72, flatShading: true }); // 建立建築立面材質
+addBox(building, facade, [0, height / 2, 0], [width, height, depth]); // 建立建築主體方塊
+const levels = Math.max(1, Math.floor(height / 0.7)); // 依樓高估算可放置的窗戶樓層數
+for (let floor = 0; floor < levels; floor += 1) { const y = 0.38 + floor * 0.66; if (y < height - 0.12) { for (const windowX of [-0.27, 0.27]) { addBox(building, windowMat, [windowX * width, y, depth / 2 + 0.012], [width * 0.2, 0.23, 0.025]); } addBox(building, windowMat, [width / 2 + 0.012, y, 0], [0.025, 0.23, depth * 0.25]); } } // 在正面與側面整齊排列窗戶
+if (tech) { addCylinder(building, railMat, [0, height + 0.22, 0], 0.035, 0.035, 0.44, 6); const beacon = new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({ color: "#8df2ee", emissive: "#22c8d0", emissiveIntensity: 0.8 })); beacon.position.set(0, height + 0.48, 0); beacon.scale.setScalar(0.13); building.add(beacon); } // 在科技大樓頂端加上天線與發光訊號球
+parent.add(building); // 將建築加入指定島嶼
+return building; // 回傳建築群組
+} // 結束建築建立函式
+function addHouse(parent, x, z, color, scale = 1) { // 使用方塊與斜屋頂組成鄉村小屋
+addBlockRect(parent.position.x + x, parent.position.z + z, 0.55 * scale, 0.5 * scale); // 將農舍占地登記為矩形障礙物
+const house = new THREE.Group(); // 建立小屋專屬群組
+house.position.set(x, 0.48, z); // 將小屋放在草坪表面
+const wall = new THREE.MeshStandardMaterial({ color, roughness: 0.9 }); // 建立小屋牆面材質
+addBox(house, wall, [0, 0.58 * scale, 0], [0.95 * scale, 1.16 * scale, 0.82 * scale]); // 建立小屋方形牆身
+const roofMat = new THREE.MeshStandardMaterial({ color: "#b85e4b", roughness: 0.9 }); // 建立暖紅色屋頂材質
+const leftRoof = addBox(house, roofMat, [-0.24 * scale, 1.29 * scale, 0], [0.7 * scale, 0.14 * scale, 1.02 * scale]); // 鋪設小屋左側斜面屋頂
+leftRoof.rotation.z = -0.52; // 讓左側屋頂斜向中央屋脊
+const rightRoof = addBox(house, roofMat, [0.24 * scale, 1.29 * scale, 0], [0.7 * scale, 0.14 * scale, 1.02 * scale]); // 鋪設小屋右側斜面屋頂
+rightRoof.rotation.z = 0.52; // 讓右側屋頂斜向中央屋脊
+addBox(house, windowMat, [0.24 * scale, 0.67 * scale, 0.416 * scale], [0.22 * scale, 0.28 * scale, 0.025]); // 安裝面向步道的窗戶
+parent.add(house); // 將小屋加入鄉村島
+} // 結束小屋組裝函式
+function addBench(parent, x, z, rotation = 0) { // 使用木板與圓柱支腳組成公園長椅
+const bench = new THREE.Group(); // 建立長椅專屬群組
+bench.position.set(x, 0, z); // 設定長椅位置
+bench.rotation.y = rotation; // 設定長椅朝向
+addBlockRect(parent.position.x + x, parent.position.z + z, 0.68, 0.26, rotation); // 將長椅占地登記為可旋轉矩形障礙物
+addBox(bench, woodMat, [0, 0.91, 0], [1.18, 0.13, 0.34]); // 放置長椅座面
+addBox(bench, woodMat, [0, 1.28, -0.13], [1.18, 0.55, 0.1]); // 放置長椅靠背
+for (const side of [-0.43, 0.43]) { addCylinder(bench, darkWoodMat, [side, 0.54, 0], 0.05, 0.065, 0.72, 7); } // 放置左右圓柱椅腳
+parent.add(bench); // 將長椅加入公園平台
+} // 結束長椅組裝函式
+const lampHeads = []; // 保存所有路燈燈頭以供日夜模式平順控制
+const daySkyColor = new THREE.Color("#8fc9ca"); // 保存白天青綠色天空水面顏色
+const nightSkyColor = new THREE.Color("#d9dde2"); // 保存夜間全螢幕淺灰背景顏色
+const dayWaterColor = new THREE.Color("#8fc9ca"); // 保存白天淡藍綠水面顏色
+const nightWaterColor = new THREE.Color("#d9dde2"); // 讓夜間鋪滿畫面的水面背景同步轉為淺灰色
+const dayWaterEmissive = new THREE.Color("#000000"); // 保存白天水面的無自發光狀態
+const nightWaterEmissive = new THREE.Color("#c8cdd2"); // 保存夜間淺灰背景需要的補光色
+const dayLampColor = new THREE.Color("#fff2bc"); // 保存白天燈頭的柔和淡黃色
+const nightLampColor = new THREE.Color("#fffbe2"); // 保存夜間燈頭的高亮暖白色
+let nightMode = false; // 記錄目前是否啟用夜晚模式
+let nightBlend = 0; // 記錄日夜色彩過渡比例以供平滑插值
+const dayModeButton = document.querySelector("#mode-day"); // 取得日間模式切換按鈕
+const nightModeButton = document.querySelector("#mode-night"); // 取得夜間模式切換按鈕
+function setNightMode(enabled) { nightMode = enabled; document.body.classList.toggle("night-mode", enabled); dayModeButton.setAttribute("aria-pressed", String(!enabled)); nightModeButton.setAttribute("aria-pressed", String(enabled)); document.querySelector('meta[name="theme-color"]').content = enabled ? "#d9dde2" : "#8fc9ca"; } // 同步更新日夜狀態、按鈕選取樣式與瀏覽器主題色
+dayModeButton.addEventListener("click", () => setNightMode(false)); // 點選左側日間按鈕切回白天
+nightModeButton.addEventListener("click", () => setNightMode(true)); // 點選右側夜間按鈕切換夜景
+setNightMode(false); // 初始化為日間並同步按鈕與背景狀態
+function addLamp(parent, x, z) { // 使用圓柱與球體組成公園路燈
+const lamp = new THREE.Group(); // 建立路燈專屬群組
+lamp.position.set(x, 0, z); // 設定路燈在平台上的位置
+addBlockCircle(parent.position.x + x, parent.position.z + z, 0.18); // 將路燈柱登記為圓形障礙物
+addCylinder(lamp, railMat, [0, 1.1, 0], 0.065, 0.09, 2.05, 8); // 放置黃色圓柱燈柱
+addBox(lamp, darkWoodMat, [0, 2.16, 0], [0.34, 0.1, 0.34]); // 放置方形燈罩底座
+const bulbMaterial = new THREE.MeshStandardMaterial({ color: "#fff2bc", emissive: "#ffd979", emissiveIntensity: 0.3, roughness: 0.35 }); // 建立可在夜間增加發光強度的燈頭材質
+const bulb = new THREE.Mesh(sphereGeo, bulbMaterial); // 建立淡金色球形燈罩
+bulb.position.set(0, 2.38, 0); // 將燈罩放到燈柱頂端
+bulb.scale.setScalar(0.22); // 將球體縮放成圓潤燈罩
+bulb.castShadow = true; // 讓燈罩投射陰影
+bulb.userData.lampLight = new THREE.PointLight("#fff1b0", 0, 10, 1.6); // 建立白天關閉、夜間照亮更大步道範圍的暖白點光源
+bulb.userData.lampLight.position.copy(bulb.position); // 將點光源放在燈頭中心
+lamp.add(bulb.userData.lampLight); // 將點光源加入路燈群組
+lamp.add(bulb); // 將燈罩加入路燈
+lampHeads.push(bulb); // 保存燈頭與其光源供日夜效果更新
+parent.add(lamp); // 將路燈加入平台
+} // 結束路燈組裝函式
+function trashCan(parent, x, z) { // 只用方塊、圓柱與球體拼出低多邊形公園垃圾桶
+const trash = new THREE.Group(); // 建立垃圾桶專屬群組
+trash.position.set(x, 0, z); // 設定垃圾桶在公園平台上的位置
+addBlockCircle(parent.position.x + x, parent.position.z + z, 0.43); // 將垃圾桶占地登記為圓形障礙物
+const bodyMat = new THREE.MeshStandardMaterial({ color: "#527a78", roughness: 0.9, flatShading: true }); // 建立霧面青綠色桶身材質
+const lidMat = new THREE.MeshStandardMaterial({ color: "#375c5c", roughness: 0.86, flatShading: true }); // 建立較深色桶蓋材質
+addCylinder(trash, bodyMat, [0, 0.82, 0], 0.3, 0.37, 0.68, 8); // 用低面數圓柱建立略帶錐度的桶身
+addCylinder(trash, lidMat, [0, 1.2, 0], 0.42, 0.42, 0.12, 8); // 用扁圓柱封住垃圾桶頂部
+addBox(trash, darkWoodMat, [0, 1.06, 0.335], [0.32, 0.11, 0.035]); // 用方塊畫出桶身前方的投入口
+const knob = new THREE.Mesh(sphereGeo, railMat); // 用多面球體製作桶蓋上的小把手
+knob.position.set(0, 1.29, 0); // 將把手放在桶蓋中央上方
+knob.scale.set(0.1, 0.07, 0.1); // 將球體壓成低調的小把手
+knob.castShadow = true; // 讓把手投射柔和陰影
+trash.add(knob); // 將把手加入垃圾桶
+parent.add(trash); // 將完成的垃圾桶放到指定平台
+} // 結束公園垃圾桶組裝函式
+const rideWheels = []; // 保存摩天輪群組供主迴圈持續緩慢旋轉
+function makeFarmAnimal(parent, x, z, bodyColor, headColor = "#f4ead8", kind = "cow") { // 依動物種類用低多邊形模型製作農場動物
+const animal = new THREE.Group(); // 建立動物專屬群組
+animal.position.set(x, 0, z); // 設定動物在農場平台上的位置
+const bodyMaterial = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.95, flatShading: true }); // 建立低多邊形動物身體材質
+const headMaterial = new THREE.MeshStandardMaterial({ color: headColor, roughness: 0.92, flatShading: true }); // 建立動物頭部與腿部材質
+const body = new THREE.Mesh(sphereGeo, bodyMaterial); // 用多面球體製作圓潤身體
+body.position.set(0, kind === "alpaca" ? 0.98 : 0.92, 0); // 依羊駝或短腿動物調整身體高度
+body.scale.set(kind === "alpaca" ? 0.52 : kind === "capybara" ? 0.68 : 0.58, kind === "alpaca" ? 0.34 : 0.42, kind === "alpaca" ? 0.72 : 0.82); // 依動物身形調整身體長寬比例
+body.castShadow = true; // 讓動物身體投射柔和陰影
+animal.add(body); // 將身體加入動物群組
+if (kind === "alpaca") addCylinder(animal, bodyMaterial, [0, 1.38, 0.53], 0.17, 0.2, 0.86, 7); // 為羊駝加上明顯的長脖子
+const head = new THREE.Mesh(sphereGeo, headMaterial); // 用多面球體製作動物頭部
+head.position.set(0, kind === "alpaca" ? 1.78 : kind === "capybara" ? 1.1 : 1.14, 0.66); // 依羊駝長頸或其他動物設定頭部位置
+head.scale.set(kind === "alpaca" ? 0.28 : 0.38, kind === "alpaca" ? 0.38 : 0.36, kind === "capybara" ? 0.42 : 0.36); // 以長臉或圓臉比例區分農場動物
+head.castShadow = true; // 讓頭部投射柔和陰影
+animal.add(head); // 將頭部加入動物群組
+const legHeight = kind === "alpaca" ? 0.82 : kind === "capybara" ? 0.4 : 0.52; // 依羊駝或水豚的腿長調整支撐高度
+const legCenter = kind === "alpaca" ? 0.92 : kind === "capybara" ? 0.58 : 0.61; // 讓不同長度的腿都能穩穩站在草地上
+for (const side of [-1, 1]) { for (const front of [-1, 1]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, legHeight, 6), headMaterial); leg.position.set(side * (kind === "alpaca" ? 0.29 : 0.34), legCenter, front * 0.48); leg.castShadow = true; animal.add(leg); } } // 用四支低多邊形腿呈現水豚短腿與羊駝長腿
+for (const side of [-1, 1]) { const ear = new THREE.Mesh(sphereGeo, headMaterial); ear.position.set(side * (kind === "alpaca" ? 0.2 : 0.32), kind === "alpaca" ? 2.08 : kind === "pig" ? 1.42 : 1.39, 0.58); ear.scale.set(kind === "alpaca" ? 0.1 : 0.16, kind === "alpaca" || kind === "pig" ? 0.22 : 0.11, 0.1); animal.add(ear); } // 以長耳羊駝、豎耳小豬和圓耳水豚區分外型
+const noseColor = kind === "pig" ? "#d77d86" : kind === "alpaca" ? "#4b3730" : "#403b38"; // 依動物種類選擇豬鼻或自然深色鼻頭
+const nose = new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({ color: noseColor, roughness: 0.9 })); // 建立動物臉部鼻頭
+nose.position.set(0, kind === "alpaca" ? 1.72 : kind === "capybara" ? 1.04 : 1.05, kind === "pig" ? 1.0 : 0.98); // 將鼻頭放在長臉或圓臉前端
+nose.scale.set(kind === "pig" ? 0.18 : kind === "alpaca" ? 0.1 : 0.12, kind === "pig" ? 0.14 : 0.1, kind === "pig" ? 0.12 : 0.09); // 用寬扁粉色鼻子突出小豬辨識特徵
+animal.add(nose); // 將鼻頭加入動物群組
+for (const side of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 7, 5), new THREE.MeshStandardMaterial({ color: "#302a27", roughness: 0.8 })); eye.position.set(side * 0.18, kind === "alpaca" ? 1.8 : kind === "capybara" ? 1.12 : 1.16, 0.95); animal.add(eye); } // 為卡皮芭拉、羊駝與小豬加上小巧眼睛
+addBlockCircle(parent.position.x + x, parent.position.z + z, kind === "alpaca" ? 0.62 : 0.68); // 將動物占地登記為圓形障礙物
+parent.add(animal); // 將動物放到指定農場平台
+return animal; // 回傳動物供需要時擴充動畫
+} // 結束低多邊形農場動物函式
+function addMarineFigure(parent, x, z, kind, color, scale = 1) { // 用低多邊形身體、背鰭與尾鰭製作水族館海豚或鯨魚展示
+const creature = new THREE.Group(); // 建立海洋生物展示群組
+creature.position.set(x, 0.56, z); // 將海洋生物放到水族館平台上
+creature.scale.setScalar(scale); // 依指定比例縮放海洋生物雕塑
+const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, flatShading: true }); // 建立海洋生物的藍綠色身體材質
+const bellyMat = new THREE.MeshStandardMaterial({ color: "#e8f4ef", roughness: 0.8, flatShading: true }); // 建立淺色腹部材質增強輪廓辨識
+const body = new THREE.Mesh(sphereGeo, bodyMat); // 用多面球體製作流線身體
+body.position.y = 0.38; // 將身體抬離平台表面
+body.scale.set(kind === "whale" ? 1.25 : 0.96, 0.42, 0.52); // 以寬厚比例區分鯨魚與海豚
+body.castShadow = true; // 讓海洋生物投射柔和陰影
+creature.add(body); // 將身體加入展示群組
+const belly = new THREE.Mesh(sphereGeo, bellyMat); // 建立海洋生物的淺色腹部
+belly.position.set(0.08, 0.18, 0.04); // 將腹部放在身體下側
+belly.scale.set(0.72, 0.2, 0.38); // 將腹部壓成流線形狀
+creature.add(belly); // 將腹部加入展示群組
+const dorsalFin = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.55, 5), bodyMat); // 用低面數圓錐製作背鰭
+dorsalFin.position.set(-0.02, 0.79, 0); // 將背鰭放在身體上方
+dorsalFin.rotation.z = -0.22; // 讓背鰭稍微向尾部傾斜
+creature.add(dorsalFin); // 將背鰭加入展示群組
+for (const side of [-1, 1]) { const flipper = new THREE.Mesh(sphereGeo, bodyMat); flipper.position.set(-0.02, 0.19, side * 0.47); flipper.scale.set(0.42, 0.1, 0.2); flipper.rotation.y = side * 0.18; creature.add(flipper); } // 在身體兩側放置一對扁平胸鰭
+for (const side of [-1, 1]) { const tailFin = new THREE.Mesh(sphereGeo, bodyMat); tailFin.position.set(-1.04, 0.52, side * 0.22); tailFin.scale.set(0.39, 0.1, 0.2); tailFin.rotation.y = side * 0.3; creature.add(tailFin); } // 用分叉尾葉呈現明顯的水平尾鰭
+for (const side of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), new THREE.MeshStandardMaterial({ color: "#264653", roughness: 0.7 })); eye.position.set(0.69, 0.48, side * 0.34); creature.add(eye); } // 在頭部兩側點上小巧眼睛
+if (kind === "whale") { const spout = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.34, 5), aquariumAccentMat); spout.position.set(0.48, 0.89, 0); spout.rotation.z = Math.PI; creature.add(spout); } // 為鯨魚加上海綠色噴水造型
+else { const snout = new THREE.Mesh(sphereGeo, bodyMat); snout.position.set(0.88, 0.31, 0); snout.scale.set(0.42, 0.16, 0.2); creature.add(snout); } // 為海豚加上向前延伸的尖吻
+parent.add(creature); // 將海洋生物雕塑放到水族館平台
+return creature; // 回傳海洋生物群組供後續使用
+} // 結束海豚與鯨魚展示模型函式
+function addTropicalFish(parent, x, z, color, scale = 1) { // 用多面球體與尾鰭製作色彩鮮明的熱帶魚圖案
+const fish = new THREE.Group(); // 建立熱帶魚展示群組
+fish.position.set(x, 0.61, z); // 將熱帶魚圖案放在平台表面上
+fish.scale.setScalar(scale); // 依照指定比例縮放熱帶魚
+const fishMat = new THREE.MeshStandardMaterial({ color, roughness: 0.64, flatShading: true }); // 建立熱帶魚亮麗的主體顏色
+const body = new THREE.Mesh(sphereGeo, fishMat); // 用多面球體製作熱帶魚身體
+body.scale.set(0.42, 0.23, 0.16); // 將球體壓成扁長魚身
+body.castShadow = true; // 讓魚身投射柔和陰影
+fish.add(body); // 將魚身加入展示群組
+const tail = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.38, 4), fishMat); // 用低面數圓錐製作三角尾鰭
+tail.position.x = -0.47; // 將尾鰭接在魚身後端
+tail.rotation.z = -Math.PI / 2; // 將尾鰭尖端朝向魚身
+fish.add(tail); // 將尾鰭加入展示群組
+const fin = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.28, 4), aquariumAccentMat); // 用海綠色圓錐製作背鰭
+fin.position.y = 0.25; // 將背鰭放在魚身上緣
+fish.add(fin); // 將背鰭加入展示群組
+const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshStandardMaterial({ color: "#264653", roughness: 0.7 })); // 建立熱帶魚的小黑眼睛
+eye.position.set(0.24, 0.06, 0.12); // 將眼睛放在魚頭前側
+fish.add(eye); // 將眼睛加入展示群組
+parent.add(fish); // 將熱帶魚圖案放到水族館平台
+return fish; // 回傳熱帶魚供後續使用
+} // 結束熱帶魚展示模型函式
+function addCoral(parent, x, z, color, scale = 1) { // 用多枝圓柱與圓錐製作珊瑚礁圖案
+const coralMat = new THREE.MeshStandardMaterial({ color, roughness: 0.82, flatShading: true }); // 建立暖色珊瑚礁材質
+addCylinder(parent, coralMat, [x, 0.78, z], 0.16 * scale, 0.2 * scale, 0.62 * scale, 6); // 建立珊瑚礁中央枝幹
+for (const side of [-1, 1]) { const branch = new THREE.Mesh(new THREE.ConeGeometry(0.13 * scale, 0.52 * scale, 5), coralMat); branch.position.set(x + side * 0.22 * scale, 0.9 + 0.12 * scale, z); branch.rotation.z = -side * 0.42; branch.castShadow = true; parent.add(branch); } // 在兩側伸出分叉珊瑚枝
+const tip = new THREE.Mesh(new THREE.ConeGeometry(0.11 * scale, 0.4 * scale, 5), coralMat); // 建立珊瑚礁中央尖枝
+tip.position.set(x, 1.13 + 0.2 * scale, z); // 將尖枝放到中央枝幹頂端
+tip.castShadow = true; // 讓珊瑚尖枝投射柔和陰影
+parent.add(tip); // 將中央珊瑚尖枝放入展示場景
+} // 結束珊瑚礁展示模型函式
+function makeIsland(district) { // 依各自主題建立空間寬敞的方形浮島
+const island = new THREE.Group(); // 建立浮島專屬群組
+island.position.set(district.x, 0, district.z); // 設定浮島在大海中的位置
+const slabMaterials = [sideStripeMat, sideStripeMat, platformGroundMats[district.type], platformBottomMat, sideStripeMat, sideStripeMat]; // 依平台主題色設定頂底面並保留黃黑斜紋側面
+const slab = new THREE.Mesh(new THREE.BoxGeometry(district.width, 0.72, district.depth), slabMaterials); // 依平台尺寸建立彩色浮島基座
+slab.position.y = 0; // 將基座放置在水面上方
+slab.castShadow = true; // 讓基座投射柔和陰影
+slab.receiveShadow = true; // 讓基座承接陰影
+island.add(slab); // 將基座加入浮島
+const surfaceMaterial = platformGroundMats[district.type]; // 依每座平台的遊樂功能選用專屬底色
+const surface = new THREE.Mesh(new THREE.BoxGeometry(district.width - 0.12, 0.08, district.depth - 0.12), surfaceMaterial); // 建立貼合浮島比例的完整主題地面
+surface.position.y = 0.48; // 將地面鋪在斜紋基座頂部
+surface.receiveShadow = true; // 讓地面承接樹木與建築陰影
+island.add(surface); // 將主題地面加入浮島
+if (district.type === "hub") { // 開始配置明亮的遊樂園入口廣場
+for (let x = -8.5; x <= 8.5; x += 1.5) addBox(island, tileLineMat, [x, 0.53, 0], [0.025, 0.012, district.depth - 0.4]); // 以疏朗地磚縫呈現擴大後入口廣場
+for (let z = -8.5; z <= 8.5; z += 1.5) addBox(island, tileLineMat, [0, 0.53, z], [district.width - 0.4, 0.012, 0.025]); // 延伸廣場地磚並保留四方步行空間
+for (const side of [-1, 1]) addBox(island, bridgeDeckMat, [side * 4.65, 0.59, 0], [9.4, 0.08, 5.1]); // 為東西向公車路線鋪設加寬柏油車道
+for (const side of [-1, 1]) addBox(island, bridgeDeckMat, [0, 0.59, side * 4.65], [5.1, 0.08, 9.4]); // 為南北向公車路線鋪設加寬柏油車道
+for (const side of [-1, 1]) for (let dash = 0; dash < 4; dash += 1) { const mark = side * (1.1 + dash * 1.85); addBox(island, crosswalkMat, [mark, 0.64, 0], [0.85, 0.018, 0.09]); addBox(island, crosswalkMat, [0, 0.64, mark], [0.09, 0.018, 0.85]); } // 在四向公車道路中央繪製短白色虛線
+for (const side of [-1, 1]) for (let stripe = -9; stripe <= 9; stripe += 1) addBox(island, crosswalkMat, [side * 8.25, 0.64, stripe * 0.24], [0.9, 0.025, 0.13]); // 在東西向道路入口繪製寬幅斑馬線
+for (const side of [-1, 1]) for (let stripe = -9; stripe <= 9; stripe += 1) addBox(island, crosswalkMat, [stripe * 0.24, 0.64, side * 8.25], [0.13, 0.025, 0.9]); // 在南北向道路入口繪製寬幅斑馬線
+addBlockRect(district.x - 4.7, district.z - 3.7, 1.35, 0.85); // 將入口閘門登記為矩形障礙物並避開主要道路
+addBox(island, roofOrangeMat, [-6.1, 2.1, -3.7], [0.42, 3.0, 0.55]); // 用橘色方柱打造遊樂園門口左側門柱
+addBox(island, schoolWallMat, [-3.3, 2.1, -3.7], [0.42, 3.0, 0.55]); // 用淺色方柱打造遊樂園門口右側門柱
+addBox(island, roofOrangeMat, [-4.7, 3.72, -3.7], [3.25, 0.48, 0.58]); // 用金橘色橫樑完成醒目的入園門楣
+addBox(island, railMat, [-4.7, 3.72, -3.36], [2.25, 0.18, 0.08]); // 在門楣前方加上黃色遊樂園招牌飾條
+addBlockRect(district.x - 5.2, district.z - 1.35, 0.72, 0.62); // 將售票亭登記為矩形障礙物方便角色沿邊行走
+addBox(island, schoolWallMat, [-5.2, 1.02, -1.35], [1.35, 1.05, 1.05]); // 建立入口旁的淺色售票亭
+addBox(island, roofOrangeMat, [-5.2, 1.62, -1.35], [1.5, 0.16, 1.18]); // 為售票亭加上共用調色盤的橘色屋頂
+addTree(island, 5.9, -4.4, 0.65); // 在入口廣場角落點綴一棵小樹
+addLamp(island, 6.0, 4.25); // 在入口廣場另一角放置可切換夜燈
+} // 結束遊樂園入口廣場布置
+if (district.type === "park") { // 開始配置摩天輪與遊樂園休憩公園
+const wheel = new THREE.Group(); // 建立可旋轉的摩天輪座艙與輪框群組
+wheel.position.set(0, 4.05, -0.75); // 將大型觀景輪中心抬高並移到公園平台後側
+const wheelFrameMat = new THREE.MeshStandardMaterial({ color: "#e9eeeb", roughness: 0.42, metalness: 0.52 }); // 建立倫敦眼風格的淺色鋼製輪框
+const rim = new THREE.Mesh(new THREE.TorusGeometry(2.82, 0.075, 8, 56), wheelFrameMat); // 用纖細鋼環塑造大型觀景輪外圈
+wheel.add(rim); // 將輪框加入旋轉群組
+const innerRim = new THREE.Mesh(new THREE.TorusGeometry(2.62, 0.045, 7, 56), wheelFrameMat); // 在內側增加細鋼圈強化大型輪體結構
+wheel.add(innerRim); // 將內側鋼圈加入旋轉群組
+for (let spokeIndex = 0; spokeIndex < 16; spokeIndex += 1) { const spoke = addBox(wheel, wheelFrameMat, [0, 0, 0], [0.055, 5.55, 0.07]); spoke.rotation.z = spokeIndex * Math.PI / 16; } // 以十六組細長輪輻呈現大型觀景輪格狀結構
+const axle = new THREE.Mesh(sphereGeo, goldAccentMat); // 建立摩天輪中央金色軸心
+axle.scale.setScalar(0.26); // 將軸心縮放成精緻圓形輪轂
+wheel.add(axle); // 將中心軸心加入旋轉群組
+const cabinGlassMat = new THREE.MeshStandardMaterial({ color: "#78cbd0", roughness: 0.28, metalness: 0.16 }); // 建立倫敦眼觀景艙的淺藍玻璃材質
+wheel.userData.cabins = []; // 保存觀景艙並在輪框旋轉時保持艙體直立
+for (let cabinIndex = 0; cabinIndex < 16; cabinIndex += 1) { const angle = cabinIndex * Math.PI / 8; const cabin = new THREE.Group(); cabin.position.set(Math.cos(angle) * 2.82, Math.sin(angle) * 2.82, 0); addBox(cabin, cabinGlassMat, [0, 0, 0], [0.38, 0.52, 0.34]); addBox(cabin, goldAccentMat, [0, -0.25, 0], [0.42, 0.08, 0.38]); addBox(cabin, wheelFrameMat, [0, 0.28, 0], [0.42, 0.08, 0.38]); addBox(cabin, cabinGlassMat, [0, 0, 0.18], [0.26, 0.34, 0.025]); wheel.add(cabin); wheel.userData.cabins.push(cabin); } // 在輪圈四周安裝十六個直立透明觀景艙
+island.add(wheel); // 將摩天輪加入公園平台
+rideWheels.push(wheel); // 登記摩天輪以便在每影格緩慢旋轉
+const wheelSupportMat = new THREE.MeshStandardMaterial({ color: "#647178", roughness: 0.62, metalness: 0.42 }); // 建立大型觀景輪深灰鋼製支架
+for (const side of [-1, 1]) { const support = addBox(island, wheelSupportMat, [side * 0.98, 2.43, -0.75], [0.17, 3.85, 0.22]); support.rotation.z = side * 0.36; } // 以兩支外張鋼柱支撐摩天輪輪軸
+addCylinder(island, wheelSupportMat, [0, 4.05, -0.75], 0.12, 0.12, 2.0, 10).rotation.z = Math.PI / 2; // 用橫向金屬軸承連接兩側支撐架
+for (const side of [-1, 1]) addBlockRect(district.x + side * 0.98, district.z - 0.75, 0.2, 0.18); // 只封鎖摩天輪兩根實際支柱並開放中央乘客通道
+const parkTrees = [[-6.1,-5.7],[2.4,-5.8],[6.1,5.5],[-5.8,5.4]]; // 沿公園外圍疏落安排粉色觀賞樹
+parkTrees.forEach((point, index) => addTree(island, point[0], point[1], index % 2 === 0 ? 0.82 : 0.72, pinkLeafMats)); // 種植幾棵粉色低多邊形樹並保留遊樂設施空間
+addBench(island, -5.9, 0.1, Math.PI / 2); // 在公園外側放置一張休憩長椅
+addLamp(island, 5.8, 0.2); // 在摩天輪旁點綴夜間會亮起的路燈
+trashCan(island, -4.4, -3.8); // 在公園西側放置第一個低多邊形垃圾桶
+trashCan(island, 4.4, -3.8); // 在公園東側放置第二個低多邊形垃圾桶
+} // 結束摩天輪公園布置
+if (district.type === "aquarium") { // 開始配置海藍平台、玻璃展窗與海洋生物造景
+addBlockRect(district.x, district.z - 3.84, 4.1, 0.16); // 登記水族館後牆碰撞範圍並保留建築內部行走區
+for (const side of [-1, 1]) addBlockRect(district.x + side * 3.97, district.z - 1.9, 0.16, 1.95); // 只阻擋水族館左右實際側牆而不封閉入口
+for (const side of [-1, 1]) addBlockRect(district.x + side * 2.625, district.z + 0.175, 1.475, 0.16); // 登記水族館正面兩側牆並在中央保留可通行入口
+for (const side of [-1, 1]) addBlockRect(district.x + side * 1.15, district.z + 0.38, 0.1, 0.12); // 登記入口兩側門框柱碰撞並保留中間寬敞通道
+addBox(island, aquariumWallMat, [0, 2.02, -3.84], [8.2, 2.95, 0.27]); // 建立水族館後側海沫白色牆面
+addBox(island, aquariumWallMat, [-3.97, 2.02, -1.9], [0.26, 2.95, 3.9]); // 建立水族館左側牆面
+addBox(island, aquariumWallMat, [3.97, 2.02, -1.9], [0.26, 2.95, 3.9]); // 建立水族館右側牆面
+addBox(island, aquariumWallMat, [-2.625, 2.02, 0.175], [2.95, 2.95, 0.27]); // 建立水族館入口左側正面牆
+addBox(island, aquariumWallMat, [2.625, 2.02, 0.175], [2.95, 2.95, 0.27]); // 建立水族館入口右側正面牆
+const aquariumGlass = new THREE.MeshStandardMaterial({ color: "#55c8d3", transparent: true, opacity: 0.58, roughness: 0.2, metalness: 0.08 }); // 建立通透的海藍色玻璃展示窗
+for (const side of [-1, 1]) addBox(island, aquariumGlass, [side * 2.625, 1.88, 0.38], [2.95, 2.35, 0.09]); // 在水族館入口兩側安裝大型觀景玻璃並保持中央入口暢通
+addBox(island, aquariumAccentMat, [0, 3.61, -1.9], [8.6, 0.2, 4.5]); // 以海綠色屋頂邊框標示水族館主建築
+addBox(island, roofOrangeMat, [0, 3.88, -1.9], [5.4, 0.28, 0.36]); // 以暖橘招牌底板點亮水族館屋頂
+addBox(island, aquariumAccentMat, [-3.48, 1.92, 0.38], [0.14, 2.55, 0.18]); // 在觀景窗左側安裝海綠色立柱框
+addBox(island, aquariumAccentMat, [3.48, 1.92, 0.38], [0.14, 2.55, 0.18]); // 在觀景窗右側安裝海綠色立柱框
+for (const side of [-1, 1]) addBox(island, aquariumAccentMat, [side * 1.15, 1.92, 0.38], [0.12, 2.55, 0.18]); // 在中央入口兩側加上清楚可見的門框柱
+addBox(island, aquariumAccentMat, [0, 3.2, 0.38], [2.42, 0.16, 0.18]); // 以海綠色橫樑標示水族館可通行的正門
+for (let fishIndex = 0; fishIndex < 6; fishIndex += 1) { const fish = new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({ color: ["#ff8873","#ffcf61","#7bd8c3"][fishIndex % 3], roughness: 0.65, flatShading: true })); fish.position.set(-2.5 + fishIndex * 0.95, 1.35 + (fishIndex % 2) * 0.65, 0.38); fish.scale.set(0.34, 0.2, 0.16); fish.castShadow = true; island.add(fish); } // 在玻璃內側排列六隻色彩繽紛的低多邊魚
+const aquariumPoolMat = new THREE.MeshStandardMaterial({ color: "#55c8d3", roughness: 0.36, metalness: 0.08, transparent: true, opacity: 0.78 }); // 建立前庭的淺海藍色展示池
+addBox(island, aquariumPoolMat, [0, 0.57, 4.15], [10.8, 0.045, 4.6]); // 在水族館前方鋪設海洋展示池底色
+addMarineFigure(island, -2.7, 3.8, "dolphin", "#2a9d8f", 0.92); // 在展示池左側放置海綠色海豚造景
+addMarineFigure(island, 2.65, 3.85, "whale", "#264653", 1.08); // 在展示池右側放置深海色鯨魚造景
+addTropicalFish(island, -4.35, 5.45, "#e76f51", 0.84); // 在珊瑚礁旁放置珊瑚紅熱帶魚圖案
+addTropicalFish(island, -0.1, 5.55, "#e9c46a", 0.9); // 在展示池中央放置金黃色熱帶魚圖案
+addTropicalFish(island, 4.15, 5.35, "#f4a261", 0.8); // 在展示池右側放置暖橘色熱帶魚圖案
+addCoral(island, -5.0, 3.5, "#e76f51", 0.82); // 在展示池左端建立珊瑚紅礁石
+addCoral(island, 5.0, 3.55, "#e9c46a", 0.78); // 在展示池右端建立金黃色珊瑚礁石
+addBench(island, -5.7, -4.5, 0); // 在水族館後側通道設置觀賞休憩長椅
+addLamp(island, 5.8, -4.4); // 在水族館後側通道放置可切換夜燈
+} // 結束水族館主題布置
+if (district.type === "coaster") { // 開始配置環繞火山、翻轉盤旋的原創冒險雲霄飛車
+const volcanoMat = new THREE.MeshStandardMaterial({ color: "#514b4c", roughness: 1, flatShading: true }); // 建立深灰色低多邊形火山岩材質
+const lavaMat = new THREE.MeshStandardMaterial({ color: C.coral, emissive: "#c33f2e", emissiveIntensity: 0.55, roughness: 0.58 }); // 建立明亮熔岩材質強調火山主題
+addBlockCircle(district.x, district.z - 0.45, 1.75); // 將火山基座登記為圓形障礙物避免角色穿入山體
+const volcano = new THREE.Mesh(new THREE.ConeGeometry(2.35, 4.0, 9, 3), volcanoMat); // 用低面數圓錐塑造冒險雲霄飛車火山
+volcano.position.set(0, 2.54, -0.45); // 將火山底部放在珊瑚紅平台中央
+volcano.castShadow = true; // 讓火山投射明顯柔和陰影
+volcano.receiveShadow = true; // 讓軌道支架陰影落在火山岩上
+island.add(volcano); // 將火山主體放到雲霄飛車平台
+const crater = new THREE.Mesh(new THREE.TorusGeometry(0.58, 0.12, 7, 18), lavaMat); // 用發光圓環表現火山口熔岩
+crater.rotation.x = Math.PI / 2; // 將火山口圓環轉成水平
+crater.position.set(0, 4.52, -0.45); // 將熔岩火山口放在火山頂端
+island.add(crater); // 將發光火山口加入火山模型
+for (let rockIndex = 0; rockIndex < 7; rockIndex += 1) { const angle = rockIndex * Math.PI * 2 / 7; const rock = new THREE.Mesh(sphereGeo, volcanoMat); rock.position.set(Math.cos(angle) * 2.25, 0.78 + (rockIndex % 2) * 0.12, -0.45 + Math.sin(angle) * 2.05); rock.scale.set(0.5 + (rockIndex % 3) * 0.12, 0.42 + (rockIndex % 2) * 0.1, 0.48); rock.rotation.y = angle; rock.castShadow = true; island.add(rock); } // 在火山腳下散布形狀不同的多面岩塊
+addBox(island, lavaMat, [0.92, 1.22, 1.2], [0.34, 0.08, 1.72], -0.42); // 在火山前坡加上一道亮橘色熔岩流
+addBox(island, lavaMat, [-1.12, 1.42, -1.78], [0.26, 0.08, 1.4], 0.34); // 在火山側坡加上第二道熔岩流
+const trackAccentMat = new THREE.MeshStandardMaterial({ color: C.yellow, roughness: 0.48, metalness: 0.12 }); // 建立金黃色雙軌與火山色形成對比
+function addTrackPair(points, closed = false, segments = 88) { const primaryCurve = new THREE.CatmullRomCurve3(points, closed, "catmullrom", 0.28); const primaryRail = new THREE.Mesh(new THREE.TubeGeometry(primaryCurve, segments, 0.12, 8, closed), roofOrangeMat); primaryRail.castShadow = true; island.add(primaryRail); const parallelPoints = points.map(point => new THREE.Vector3(point.x, point.y, point.z + 0.3)); const parallelCurve = new THREE.CatmullRomCurve3(parallelPoints, closed, "catmullrom", 0.28); const parallelRail = new THREE.Mesh(new THREE.TubeGeometry(parallelCurve, segments, 0.1, 8, closed), trackAccentMat); parallelRail.castShadow = true; island.add(parallelRail); } // 以橘金雙軌成對建立平滑的盤旋軌道
+const launchPoints = [new THREE.Vector3(-5.6,0.72,-4.5),new THREE.Vector3(-4.5,0.95,-3.6),new THREE.Vector3(-3.8,3.35,-2.8),new THREE.Vector3(-2.2,4.05,-1.8),new THREE.Vector3(-1.1,1.05,-0.2),new THREE.Vector3(0.8,0.9,1.2),new THREE.Vector3(2.6,2.7,2.1),new THREE.Vector3(4.2,1.15,1.5),new THREE.Vector3(5.5,0.72,0.3)]; // 設定急降、爬升與反向彎道的起始軌道
+addTrackPair(launchPoints, false, 96); // 鋪設火山冒險的高低起伏主軌道與平行副軌
+const helixPoints = []; // 建立環繞火山的雙圈螺旋軌道控制點
+for (let index = 0; index <= 64; index += 1) { const angle = -Math.PI / 2 + index / 64 * Math.PI * 4; const height = 0.88 + index / 64 * 2.45; helixPoints.push(new THREE.Vector3(Math.cos(angle) * 2.72, height, -0.45 + Math.sin(angle) * 2.72)); } // 逐點提高高度並繞火山盤旋兩圈
+addTrackPair(helixPoints, false, 160); // 加上最醒目的雙圈火山螺旋軌道
+const loopPoints = []; // 建立左側垂直翻轉環控制點
+for (let index = 0; index < 32; index += 1) { const angle = index / 32 * Math.PI * 2; loopPoints.push(new THREE.Vector3(-3.05 + Math.sin(angle) * 1.32, 1.95 + Math.cos(angle) * 1.32, 2.55)); } // 以垂直圓環路徑製作完整翻轉迴圈
+addTrackPair(loopPoints, true, 96); // 安裝左側完整垂直翻轉雙軌
+const corkscrewPoints = []; // 建立右側扭轉翻滾環控制點
+for (let index = 0; index < 36; index += 1) { const angle = index / 36 * Math.PI * 2; corkscrewPoints.push(new THREE.Vector3(3.0 + Math.sin(angle) * 1.18, 1.95 + Math.cos(angle) * 1.12, -2.0 + Math.sin(angle * 2) * 0.48)); } // 讓右側翻轉環隨路徑前進產生扭轉感
+addTrackPair(corkscrewPoints, true, 108); // 安裝右側扭轉翻滾雙軌
+for (let index = 0; index < helixPoints.length; index += 8) { const supportPoint = helixPoints[index]; const supportHeight = supportPoint.y - 0.55; addCylinder(island, darkWoodMat, [supportPoint.x, supportHeight / 2 + 0.55, supportPoint.z], 0.075, 0.11, supportHeight, 7); } // 沿火山螺旋軌道規律安裝深色支撐柱
+for (const side of [-1, 1]) { addBox(island, darkWoodMat, [-3.05 + side * 1.55, 1.92, 2.55], [0.16, 2.8, 0.16]); addBox(island, darkWoodMat, [3.0 + side * 1.4, 1.92, -2.0], [0.16, 2.7, 0.16]); } // 在兩組翻轉環兩側建立穩固支架
+addBox(island, darkWoodMat, [-3.05, 3.34, 2.55], [3.25, 0.14, 0.16]); // 連結左側垂直迴圈上方支架
+addBox(island, darkWoodMat, [3.0, 3.28, -2.0], [2.95, 0.14, 0.16]); // 連結右側扭轉迴圈上方支架
+const cart = new THREE.Group(); // 建立雲霄飛車座車群組
+addBox(cart, trackAccentMat, [0, 0.96, 0], [0.95, 0.42, 0.72]); // 用金黃色方塊製作火山冒險車廂
+addBox(cart, lavaMat, [0, 1.21, -0.08], [0.74, 0.12, 0.54]); // 為車廂加上熔岩紅色頂棚
+for (const side of [-1, 1]) for (const front of [-1, 1]) addCylinder(cart, darkWoodMat, [side * 0.34, 0.73, front * 0.24], 0.11, 0.11, 0.12, 8); // 在車廂底部安裝四個低多邊形車輪
+cart.position.set(-4.9, 0, -4.1); // 將展示車廂停在雲霄飛車發車區
+cart.rotation.y = -0.42; // 讓展示車廂朝向急速爬升的軌道
+island.add(cart); // 將展示車廂放上軌道
+addLamp(island, -5.7, 4.8); // 在雲霄飛車入口旁放置夜間路燈
+addTree(island, 5.8, 4.8, 0.58); // 在平台一角點綴小樹並保留軌道觀賞空間
+} // 結束雲霄飛車平台布置
+if (district.type === "farm") { // 開始配置可愛動物農場、穀倉與圍欄
+addBlockRect(district.x, district.z - 3.2, 2.35, 1.55); // 將農場穀倉登記為矩形障礙物
+addBox(island, schoolWallMat, [0, 1.82, -3.2], [4.1, 2.55, 2.9]); // 用淺色方塊建立農場穀倉主體
+addBox(island, roofOrangeMat, [0, 3.22, -3.2], [4.55, 0.22, 3.3]); // 用金橘色屋頂標示可愛農場穀倉
+addBox(island, woodMat, [0, 1.03, -1.68], [1.15, 1.45, 0.12]); // 在穀倉正面安裝木製大門
+for (const side of [-1, 1]) { addBox(island, railMat, [side * 3.8, 0.86, 2.2], [0.12, 0.62, 5.0]); addBox(island, railMat, [side * 3.8, 1.28, 2.2], [0.12, 0.1, 5.0]); } // 在左右兩側豎起黃色低矮動物圍欄
+for (const z of [-0.3, 1.4, 3.1, 4.8]) addBox(island, railMat, [0, 0.86, z], [7.6, 0.62, 0.1]); // 用分段橫欄圍出安全動物活動區
+makeFarmAnimal(island, -2.7, 2.0, "#f5eee2", "#665a55", "cow"); // 在農場左側保留黑白乳牛
+makeFarmAnimal(island, 2.2, 2.0, "#e5d6bd", "#f0e2c9", "alpaca"); // 在農場中間放置長脖子淺色羊駝
+makeFarmAnimal(island, -2.2, 4.0, "#a97852", "#b87e53", "capybara"); // 在圍欄內新增棕色卡皮芭拉
+makeFarmAnimal(island, 2.1, 4.0, "#d9a1a1", "#f2dfd4", "pig"); // 在圍欄右側放置粉色小豬
+addTree(island, 5.8, -4.8, 0.72); // 在穀倉外側種植一棵果園樹
+addBench(island, -5.6, 4.8, 0); // 在農場參觀步道旁設置長椅
+addLamp(island, 5.8, -1.2); // 在農場入口旁配置可切換夜燈
+} // 結束可愛動物農場布置
+const treeX = district.width / 2 - 1.3; // 依平台寬度計算外圍路樹的安全位置
+const treeZ = district.depth / 2 - 1.3; // 依平台深度計算外圍路樹的安全位置
+for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) addTree(island, sideX * treeX, sideZ * treeZ, 0.72, district.type === "park" ? pinkLeafMats : treeMaterials); // 在每座平台四角增添不阻擋主動線的景觀路樹
+for (const sideX of [-1, 1]) for (const sideZ of [-1, 1]) addLamp(island, sideX * (treeX - 2.1), sideZ * treeZ); // 在平台四角步道增設路燈並避開公車道路與自動登記碰撞範圍
+world.add(island); // 將完整浮島加入可旋轉群組
+return island; // 回傳浮島供行人與其他物件使用
+} // 結束浮島建立函式
+const islandGroups = platforms.map(makeIsland); // 建立入口、摩天輪、水族館、雲霄飛車與動物農場五座平台
+function bridge(route) { // 依平台尺寸在島嶼入口間搭建深色橋面與黃色欄杆
+const start = route.start; // 取得中央廣場一側的橋樑起點
+const end = route.end; // 取得目的平台一側的橋樑終點
+const dx = end.x - start.x; // 計算兩島中心的水平距離
+const dz = end.y - start.y; // 計算兩島中心的垂直距離
+const centerDistance = Math.hypot(dx, dz); // 計算兩島中心間的直線距離
+const direction = new THREE.Vector3(dx / centerDistance, 0, dz / centerDistance); // 計算橋樑延伸方向
+const bridgeLength = centerDistance - route.startInset - route.endInset; // 扣除兩島半寬後取得實際橋長
+const centerAlong = route.startInset + bridgeLength / 2; // 計算橋樑中心相對中央廣場的位置
+const bridge = new THREE.Group(); // 建立橋樑專屬群組
+bridge.position.set(start.x + direction.x * centerAlong, 0, start.y + direction.z * centerAlong); // 將橋樑精準放在兩座平台入口之間
+bridge.rotation.y = Math.atan2(direction.x, direction.z); // 讓橋面對準平台入口
+addWalkRect(bridge.position.x, bridge.position.z, route.halfWidth, bridgeLength / 2 + 0.65, bridge.rotation.y); // 延長橋面碰撞範圍並與平台重疊，避免角色半徑在橋口形成不可通行的縫隙
+addBox(bridge, darkWoodMat, [0, 0.46, 0], [5.45, 0.2, bridgeLength + 0.42]); // 建立加寬橋樑底板供巴士與行人分流通行
+addBox(bridge, bridgeDeckMat, [0, 0.59, 0], [5.2, 0.08, bridgeLength + 0.28]); // 鋪設沒有鐵軌的寬闊深灰色柏油路面
+for (let dashZ = -bridgeLength / 2 + 0.65; dashZ < bridgeLength / 2; dashZ += 1.8) addBox(bridge, crosswalkMat, [0, 0.64, dashZ], [0.1, 0.018, 0.82]); // 沿道路中央標示短白色虛線
+for (const side of [-1, 1]) addBox(bridge, pathMat, [side * 2.08, 0.65, 0], [0.92, 0.06, bridgeLength + 0.2]); // 在道路兩側鋪設可繞過巴士的寬闊人行步道
+for (const side of [-1, 1]) { const railX = side * 2.5; for (let postIndex = 0; postIndex <= 3; postIndex += 1) { const z = -bridgeLength / 2 + bridgeLength * postIndex / 3; addCylinder(bridge, railMat, [railX, 0.98, z], 0.075, 0.09, 0.84, 8); addBox(bridge, railMat, [railX, 1.38, z], [0.2, 0.08, 0.2]); } const rail = addCylinder(bridge, railMat, [railX, 1.36, 0], 0.065, 0.065, bridgeLength + 0.18, 8); rail.rotation.x = Math.PI / 2; } // 在加寬橋面兩側保留黃色安全欄杆
+world.add(bridge); // 將完成的橋樑加入群島
+} // 結束橋樑建立函式
+for (const route of bridgeRoutes) bridge(route); // 以中央遊樂園入口為樞紐搭建連接四座主題平台的欄杆橋
+const touristBus = new THREE.Group(); // 建立英國倫敦風格的紅黑雙層觀光巴士
+addBox(touristBus, busBlackMat, [0, 0.48, 0], [1.96, 0.28, 5.25]); // 建立雙層巴士下方的黑色底盤
+addBox(touristBus, busRedMat, [0, 1.28, 0], [1.9, 1.42, 5.05]); // 建立巴士下層鮮紅色車身
+addBox(touristBus, busRedMat, [0, 2.55, -0.04], [1.86, 1.1, 4.92]); // 疊加第二層紅色觀光車廂展現倫敦雙層造型
+addBox(touristBus, busBlackMat, [0, 3.13, -0.04], [1.92, 0.12, 5.02]); // 在雙層車廂上緣加上黑色車頂飾線
+addBox(touristBus, goldAccentMat, [0, 1.96, 0], [1.94, 0.1, 5.08]); // 以金色細飾條分隔上下兩層車窗
+for (const side of [-1, 1]) for (const windowZ of [-1.85, -1.05, -0.25, 0.55, 1.35]) { addBox(touristBus, busBlackMat, [side * 0.956, 1.35, windowZ], [0.035, 0.65, 0.66]); addBox(touristBus, windowMat, [side * 0.98, 1.36, windowZ], [0.025, 0.49, 0.52]); addBox(touristBus, busBlackMat, [side * 0.94, 2.57, windowZ], [0.035, 0.56, 0.66]); addBox(touristBus, windowMat, [side * 0.965, 2.58, windowZ], [0.025, 0.42, 0.52]); } // 在兩層車身兩側排列黑框觀光窗與淺藍玻璃
+addBox(touristBus, windowMat, [0, 1.54, 2.54], [1.35, 0.72, 0.035]); // 在巴士前方安裝下層寬大擋風玻璃
+addBox(touristBus, busBlackMat, [0, 2.68, 2.43], [1.36, 0.61, 0.08]); // 為上層前窗加上醒目的黑色窗框
+addBox(touristBus, windowMat, [0, 2.69, 2.49], [1.18, 0.45, 0.035]); // 裝上朝向行駛方向的上層觀景擋風玻璃
+addBox(touristBus, busBlackMat, [0, 0.75, 2.59], [2.02, 0.24, 0.14]); // 在車頭下緣安裝黑色保險桿
+for (const side of [-1, 1]) { const headlight = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), goldAccentMat); headlight.position.set(side * 0.72, 0.96, 2.62); touristBus.add(headlight); const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.37, 0.37, 0.16, 12), busBlackMat); wheel.position.set(side * 0.98, 0.43, 1.65); wheel.rotation.z = Math.PI / 2; wheel.castShadow = true; touristBus.add(wheel); const rearWheel = wheel.clone(); rearWheel.position.z = -1.68; touristBus.add(rearWheel); } // 安裝圓形車燈與前後黑色車輪
+addBox(touristBus, busBlackMat, [0.975, 1.27, -2.05], [0.04, 1.15, 0.62]); // 在巴士右側設置黑色乘客上下車門
+const busWaypoints = [new THREE.Vector2(0, 0)]; // 從中央交通廣場開始規劃巴士接駁路線
+for (const route of bridgeRoutes) { const direction = route.end.clone().sub(route.start).normalize(); const stop = route.end.clone().addScaledVector(direction, -route.endInset); busWaypoints.push(stop, new THREE.Vector2(0, 0)); } // 讓雙層巴士沿寬橋往返四個主題平台與中央站
+const busSegments = busWaypoints.map((start, index) => { const end = busWaypoints[(index + 1) % busWaypoints.length]; return { start, end, length: start.distanceTo(end) }; }).filter(segment => segment.length > 0.01); // 預先計算巴士行駛路段方向與距離
+let busSegmentIndex = 1; // 設定巴士從摩天輪站沿道路返回中央廣場
+let busSegmentProgress = 0; // 記錄巴士在目前道路路段上的行駛距離
+const initialBusSegment = busSegments[busSegmentIndex]; // 取得巴士出發路段的起訖位置
+touristBus.position.set(initialBusSegment.start.x, 0.58, initialBusSegment.start.y); // 將雙層巴士停在摩天輪橋口並避開玩家起點
+touristBus.rotation.y = Math.atan2(initialBusSegment.end.x - initialBusSegment.start.x, initialBusSegment.end.y - initialBusSegment.start.y); // 讓巴士車頭朝向中央交通廣場
+const touristBusBlock = addBlockRect(touristBus.position.x, touristBus.position.z, 1.08, 2.85, touristBus.rotation.y); // 登記巴士完整車身為可隨路線更新的矩形障礙
+world.add(touristBus); // 將紅黑雙層觀光巴士加入遊樂園並讓其沿橋接駁
+const stamps = [{ name: "遊樂園入口", description: "遊樂園入口｜穿過金橘色入口拱門，準備開始今天的遊樂園冒險。", position: new THREE.Vector3(0, 0.58, 5.8) }, { name: "摩天輪", description: "摩天輪｜在粉色樹影與旋轉座艙旁欣賞整座遊樂園。", position: new THREE.Vector3(-29, 0.58, 5.8) }, { name: "水族館", description: "水族館｜欣賞海豚、鯨魚、熱帶魚與珊瑚礁造景。", position: new THREE.Vector3(-5.4, 0.58, -26.5) }, { name: "雲霄飛車", description: "雲霄飛車｜穿梭火山、翻轉軌道與高速盤旋之間。", position: new THREE.Vector3(5, 0.58, 41.5) }, { name: "可愛動物農場", description: "可愛動物農場｜看看卡皮芭拉、羊駝與小豬在農場裡散步。", position: new THREE.Vector3(39.5, 0.58, 6.5) }]; // 在放大後的五座遊樂園平台各設置一個集章地點
+for (const stamp of stamps) { stamp.collected = false; stamp.fill = new THREE.Mesh(new THREE.CircleGeometry(0.78, 40), new THREE.MeshBasicMaterial({ color: "#f39a45", transparent: true, opacity: 0.2, depthWrite: false })); stamp.fill.rotation.x = -Math.PI / 2; stamp.fill.position.copy(stamp.position); stamp.fill.position.y = 0.555; world.add(stamp.fill); stamp.ring = new THREE.Mesh(new THREE.RingGeometry(0.66, 0.78, 40), new THREE.MeshBasicMaterial({ color: "#ef8b31", side: THREE.DoubleSide, depthWrite: false })); stamp.ring.rotation.x = -Math.PI / 2; stamp.ring.position.copy(stamp.position); stamp.ring.position.y = 0.568; world.add(stamp.ring); } // 在每座平台放置未收集時為橘色的地面集章圈
+const coins = []; // 保存尚未被玩家撿起的旋轉金幣
+const coinMaterial = new THREE.MeshStandardMaterial({ color: "#f4c84e", emissive: "#9b6714", emissiveIntensity: 0.12, metalness: 0.52, roughness: 0.3, flatShading: true }); // 建立金色低多邊形金幣材質
+let coinScore = 0; // 記錄玩家累積撿到的金幣數量
+const chibiBodyGeo = new THREE.CapsuleGeometry(0.22, 0.55, 4, 8); // 建立頭身比約一比一點五的膠囊身體
+const armUpperGeo = new THREE.CapsuleGeometry(0.085, 0.25, 3, 7); // 建立膠囊上臂共用幾何
+const armLowerGeo = new THREE.CapsuleGeometry(0.072, 0.2, 3, 7); // 建立膠囊前臂共用幾何
+const legUpperGeo = new THREE.CapsuleGeometry(0.105, 0.2, 3, 7); // 建立膠囊大腿共用幾何
+const legLowerGeo = new THREE.CapsuleGeometry(0.085, 0.22, 3, 7); // 建立膠囊小腿共用幾何
+const skinMat = new THREE.MeshStandardMaterial({ color: "#f1c2a0", roughness: 0.84 }); // 建立角色膚色材質
+const pantsMat = new THREE.MeshStandardMaterial({ color: "#435d75", roughness: 0.88 }); // 建立背景行人共用的深藍色褲子材質
+const shoeMat = new THREE.MeshStandardMaterial({ color: "#f4eee0", roughness: 0.8 }); // 建立淺色鞋子材質
+const eyeMat = new THREE.MeshStandardMaterial({ color: "#34434b", roughness: 0.7 }); // 建立角色眼睛材質
+const walkers = []; // 建立所有路人步行動畫清單
+function makeChibi(options = {}) { // 建立可調上衣、髮色、安全帽與背包的 Q 版行人
+const settings = { shirtColor: "#e58c78", pantsColor: "#435d75", hairColor: "#59433d", hairstyle: "short", helmet: false, helmetColor: "#f4c84e", backpack: false, position: [0, 0.7, 0], scale: 0.62, route: { axis: "x", amplitude: 1.8, speed: 1.8, phase: 0 }, ...options }; // 合併角色外觀、安全帽顏色與路徑預設值
+const person = new THREE.Group(); // 建立行人根群組
+person.position.set(settings.position[0], settings.position[1], settings.position[2]); // 設定行人初始位置
+person.scale.setScalar(settings.scale); // 依比例縮放整個 Q 版角色
+const shirtMat = new THREE.MeshStandardMaterial({ color: settings.shirtColor, roughness: 0.84 }); // 建立指定顏色的上衣材質
+const pantsColorMat = settings.pantsColor === "#435d75" ? pantsMat : new THREE.MeshStandardMaterial({ color: settings.pantsColor, roughness: 0.88 }); // 讓進入者依服裝方案選擇褲子配色
+const hairMat = new THREE.MeshStandardMaterial({ color: settings.hairColor, roughness: 0.94 }); // 建立指定顏色的頭髮材質
+const body = new THREE.Mesh(chibiBodyGeo, shirtMat); // 用膠囊幾何建立角色身體
+body.position.set(0, 1.03, 0); // 將身體放在角色軀幹位置
+body.castShadow = true; // 讓角色身體投射陰影
+person.add(body); // 將身體加入角色群組
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 16, 12), skinMat); // 用球體建立角色頭部
+head.position.set(0, 1.78, 0); // 將頭部置於身體上方，維持約一比一點五頭身
+head.castShadow = true; // 讓頭部投射柔和陰影
+person.add(head); // 將頭部加入角色群組
+const hair = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), hairMat); // 建立圓潤低多邊形髮頂
+hair.position.set(0, 1.98, -0.015); // 將頭髮放在頭部上半部
+hair.scale.set(1, settings.hairstyle === "curly" ? 0.6 : settings.hairstyle === "long" ? 0.54 : 0.48, 0.98); // 依短髮、長髮或捲髮設定髮頂輪廓
+person.add(hair); // 將頭髮加入角色群組
+if (settings.hairstyle === "long" || settings.hairstyle === "curly") { for (const side of [-1, 1]) { const lock = new THREE.Mesh(new THREE.SphereGeometry(settings.hairstyle === "long" ? 0.18 : 0.16, 8, 6), hairMat); lock.position.set(side * 0.25, settings.hairstyle === "long" ? 1.63 : 1.96, -0.015); lock.scale.set(0.78, settings.hairstyle === "long" ? 1.8 : 0.95, 0.82); lock.castShadow = true; person.add(lock); } } // 以垂落髮束或側邊捲髮球呈現不同髮型
+if (settings.hairstyle === "curly") { for (let curl = 0; curl < 3; curl += 1) { const tuft = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), hairMat); tuft.position.set((curl - 1) * 0.2, 2.12, -0.08); tuft.castShadow = true; person.add(tuft); } } // 在捲髮髮頂加上蓬鬆的低多邊形髮束
+if (settings.helmet) { const helmetMat = new THREE.MeshStandardMaterial({ color: settings.helmetColor, roughness: 0.58 }); const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), helmetMat); helmet.position.set(0, 2.03, 0); helmet.castShadow = true; person.add(helmet); addBox(person, helmetMat, [0, 1.91, 0.035], [0.78, 0.07, 0.16]); } // 依設定為角色戴上指定顏色的圓頂安全帽
+for (const eyeX of [-0.12, 0.12]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), eyeMat); eye.position.set(eyeX, 1.79, 0.308); person.add(eye); } // 在臉部前方安裝一對小巧眼睛
+if (settings.backpack) { addBox(person, new THREE.MeshStandardMaterial({ color: "#648a70", roughness: 0.94 }), [0, 1.02, -0.27], [0.43, 0.52, 0.2]); } // 依設定在角色背後加上背包
+const shoulders = []; // 保存兩側肩膀關節群組以供行走動畫驅動
+const elbows = []; // 保存兩側手肘關節群組以供行走動畫驅動
+const hips = []; // 保存兩側髖部關節群組以供行走動畫驅動
+const knees = []; // 保存兩側膝蓋關節群組以供行走動畫驅動
+for (const side of [-1, 1]) { const shoulder = new THREE.Group(); shoulder.position.set(side * 0.28, 1.4, 0); const upperArm = new THREE.Mesh(armUpperGeo, shirtMat); upperArm.position.y = -0.19; upperArm.castShadow = true; shoulder.add(upperArm); const elbow = new THREE.Group(); elbow.position.y = -0.36; const lowerArm = new THREE.Mesh(armLowerGeo, skinMat); lowerArm.position.y = -0.17; lowerArm.castShadow = true; elbow.add(lowerArm); const hand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 6), skinMat); hand.position.y = -0.34; elbow.add(hand); shoulder.add(elbow); person.add(shoulder); shoulders.push(shoulder); elbows.push(elbow); } // 將膠囊手臂連接在肩膀與手肘關節群組上
+for (const side of [-1, 1]) { const hip = new THREE.Group(); hip.position.set(side * 0.13, 0.62, 0); const thigh = new THREE.Mesh(legUpperGeo, pantsColorMat); thigh.position.y = -0.2; thigh.castShadow = true; hip.add(thigh); const knee = new THREE.Group(); knee.position.y = -0.4; const shin = new THREE.Mesh(legLowerGeo, pantsColorMat); shin.position.y = -0.19; shin.castShadow = true; knee.add(shin); const shoe = new THREE.Mesh(new THREE.SphereGeometry(0.105, 8, 6), shoeMat); shoe.scale.set(1, 0.68, 1.45); shoe.position.set(0, -0.37, 0.06); knee.add(shoe); hip.add(knee); person.add(hip); hips.push(hip); knees.push(knee); } // 將膠囊腿部連接在髖部與膝蓋關節群組上
+person.userData.walkParts = { shoulders, elbows, hips, knees, route: settings.route, origin: [settings.position[0], settings.position[2]] }; // 保存關節與步行路線供動畫函式使用
+person.userData.collisionRadius = settings.scale * 0.35; // 依角色縮放比例設定玩家或路人的碰撞半徑
+if (settings.autoWalk !== false) walkers.push(person); // 只將自動散步的場景行人加入路人動畫清單
+world.add(person); // 將行人加入群島場景
+return person; // 回傳角色以供呼叫端調整
+} // 結束 Q 版行人建立函式
+function animateWalk(chibi, time, stationary = false) { // 依據時間擺動四肢並可選擇保持角色位置
+const parts = chibi.userData.walkParts; // 取得角色各關節與路徑資料
+if (!parts) return; // 遇到非 makeChibi 角色時不執行步行動畫
+const route = parts.route; // 讀取角色的步行速度與路線
+const phase = time * route.speed + route.phase; // 計算目前步態相位
+const stride = Math.sin(phase); // 使用正弦曲線產生自然步伐
+const distance = Math.sin(phase) * route.amplitude; // 計算角色在步行路線上的位置
+if (!stationary) { const currentX = chibi.position.x; const currentZ = chibi.position.z; let targetX = parts.origin[0]; let targetZ = parts.origin[1]; if (route.axis === "circle") { targetX = route.center[0] + Math.cos(phase) * route.radius; targetZ = route.center[1] + Math.sin(phase) * route.radius; } else if (route.axis === "z") targetZ += distance; else targetX += distance; tryMove(chibi, targetX - currentX, targetZ - currentZ); const movedX = chibi.position.x - currentX; const movedZ = chibi.position.z - currentZ; if (Math.hypot(movedX, movedZ) > 0.0001) chibi.rotation.y = Math.atan2(movedX, movedZ); } // 讓路人沿原路線移動但使用共用碰撞檢查並面向實際前進方向
+for (let side = 0; side < 2; side += 1) { const sign = side === 0 ? 1 : -1; parts.shoulders[side].rotation.x = stride * 0.62 * sign; parts.elbows[side].rotation.x = -0.18 + Math.max(0, stride * sign) * 0.2; parts.hips[side].rotation.x = -stride * 0.72 * sign; parts.knees[side].rotation.x = Math.max(0, stride * sign) * 0.48; } // 讓肩膀手臂與髖膝腿部依關節交錯擺動
+} // 結束行人步行動畫函式
+makeChibi({ shirtColor: "#ed805f", hairColor: "#59443c", scale: 0.78, position: [0.2, 0.7, -3.8], route: { axis: "x", amplitude: 0.85, speed: 1.4, phase: 0 } }); // 以略小於主角的比例呈現遊樂園入口路人
+makeChibi({ shirtColor: "#f1c64c", hairColor: "#493c34", backpack: true, scale: 0.78, position: [-29.9, 0.7, 0], route: { axis: "circle", center: [-34, 0], radius: 4.1, speed: 0.9, amplitude: 0, phase: 0 } }); // 讓摩天輪公園路人維持自然身形並繞圈行走
+makeChibi({ shirtColor: "#e5786c", hairColor: "#47352f", scale: 0.78, position: [0.2, 0.7, -26], route: { axis: "x", amplitude: 0.85, speed: 1.35, phase: 0.7 } }); // 以合理比例呈現水族館外圍步道的散步訪客
+makeChibi({ shirtColor: "#72a6c5", hairColor: "#624639", backpack: true, scale: 0.78, position: [0, 0.7, 42], route: { axis: "x", amplitude: 0.95, speed: 1.25, phase: 2.4 } }); // 以合理比例呈現雲霄飛車平台外圍的逛園行人
+makeChibi({ shirtColor: "#7bb79e", hairColor: "#614533", scale: 0.78, position: [41.5, 0.7, 0], route: { axis: "z", amplitude: 2.2, speed: 1.2, phase: 0.4 } }); // 以自然比例呈現農場外側寬敞步道的散步居民
+makeChibi({ shirtColor: "#ffffff", helmet: true, helmetColor: "#e54242", scale: 0.78, position: [39, 0.7, -4.8], route: { axis: "x", amplitude: 1.6, speed: 1.1, phase: 0.4 } }); // 以自然比例呈現農場白衣紅安全帽路人並保留行走路線
+let player = makeChibi({ shirtColor: "#347f9b", pantsColor: "#435d75", hairColor: "#45352f", hairstyle: "short", backpack: true, scale: 0.88, autoWalk: false, position: [0, 0.7, 1.5], route: { axis: "x", amplitude: 0, speed: 2.1, phase: 0 } }); // 將可控進入者調整為設施高度的合理比例
+let currentPet = null; // 保存目前跟隨進入者的小動物模型
+let hasEntered = false; // 記錄玩家是否已完成進入前角色設定
+let hasStarted = false; // 記錄進入者是否曾完成初次設定以決定返回按鈕行為
+const outfitPresets = { explorer: { shirtColor: "#347f9b", pantsColor: "#435d75" }, sunny: { shirtColor: "#efbb48", pantsColor: "#5b774c" }, garden: { shirtColor: "#61a879", pantsColor: "#486b62" }, rose: { shirtColor: "#dc786d", pantsColor: "#65526f" } }; // 定義可選探險、活力、花園與暖色服裝配色
+function makeCompanion(kind) { // 以低多邊形球體與膠囊製作可選同行小動物
+const pet = new THREE.Group(); // 建立小動物專屬群組
+pet.position.set(0.58, -0.18, 0.08); // 將小動物安排在進入者身側並貼近地面
+pet.scale.setScalar(0.55); // 將小動物縮小成角色的隨行夥伴
+const furColor = kind === "cat" ? "#8c8790" : kind === "rabbit" ? "#efe9dc" : "#c58a53"; // 依動物種類設定毛色
+const furMat = new THREE.MeshStandardMaterial({ color: furColor, roughness: 0.95, flatShading: true }); // 建立低多邊形毛皮材質
+const body = new THREE.Mesh(sphereGeo, furMat); // 用多面球體建立小動物身體
+body.position.set(0, 0.25, 0); // 將身體放在小動物群組中央
+body.scale.set(0.34, 0.27, 0.48); // 將球體壓成短小身形
+pet.add(body); // 將身體加入小動物群組
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 8), furMat); // 用小球建立小動物頭部
+head.position.set(0, 0.43, 0.34); // 將頭部放在身體前方上緣
+head.castShadow = true; // 讓小動物頭部投射柔和陰影
+pet.add(head); // 將頭部加入小動物群組
+const muzzleMat = new THREE.MeshStandardMaterial({ color: kind === "cat" ? "#d9c9c7" : "#f2dfbd", roughness: 0.9 }); // 建立鼻口或胸口的淺色毛皮
+const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), muzzleMat); // 建立圓潤鼻口
+muzzle.position.set(0, 0.34, 0.55); // 將鼻口放在頭部前方
+pet.add(muzzle); // 將鼻口加入小動物群組
+for (const side of [-1, 1]) { const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 5), eyeMat); eye.position.set(side * 0.09, 0.46, 0.56); pet.add(eye); } // 在小動物臉上加上小巧眼睛
+for (const side of [-1, 1]) { const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.12, 2, 6), furMat); leg.position.set(side * 0.2, 0.07, 0); leg.castShadow = true; pet.add(leg); } // 用短膠囊腿支撐小動物身體
+if (kind === "rabbit") { for (const side of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 6), furMat); ear.position.set(side * 0.12, 0.7, 0.31); ear.scale.set(0.7, 1.9, 0.65); ear.castShadow = true; pet.add(ear); } } // 為兔子加上長長的直立耳朵
+else { for (const side of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), furMat); ear.position.set(side * 0.2, 0.58, 0.31); ear.scale.set(0.75, kind === "cat" ? 1.2 : 0.8, 0.7); pet.add(ear); } } // 為貓或小狗加上辨識度明確的耳朵
+const tail = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.2, 2, 6), furMat); // 建立小動物短尾巴
+tail.position.set(0, 0.35, -0.43); // 將尾巴放在身體後端
+tail.rotation.x = Math.PI / 2; // 將尾巴朝向身體後方
+pet.add(tail); // 將尾巴加入小動物群組
+player.add(pet); // 將小動物綁定在進入者身邊共同移動
+return pet; // 回傳小動物供動畫更新
+} // 結束同行小動物建立函式
+function applyAvatarSettings() { // 依表單選擇更新進入者服裝、髮型與寵物
+const position = player.position.toArray(); // 保存玩家目前位置避免更換造型時跳回起點
+const rotation = player.rotation.y; // 保存玩家目前面向
+const outfit = outfitPresets[document.querySelector("#outfit-select").value]; // 讀取所選服裝配色
+const hairColor = document.querySelector("#hair-color-select").value; // 讀取所選頭髮顏色
+const hairstyle = document.querySelector("#hair-style-select").value; // 讀取所選頭髮樣式
+const helmet = document.querySelector("#helmet-option").checked; // 讀取是否佩戴安全帽
+const backpack = document.querySelector("#backpack-option").checked; // 讀取是否攜帶背包
+const companionKind = document.querySelector("#companion-select").value; // 讀取同行小動物種類
+world.remove(player); // 移除舊造型並保留同一個玩家位置
+player = makeChibi({ ...outfit, hairColor, hairstyle, helmet, backpack, scale: 0.88, autoWalk: false, position, route: { axis: "x", amplitude: 0, speed: 2.1, phase: 0 } }); // 以表單值重建合理比例的可控角色
+player.rotation.y = rotation; // 恢復玩家原本面向
+currentPet = companionKind === "none" ? null : makeCompanion(companionKind); // 依選擇建立同行小狗、小貓、兔子或不帶動物
+} // 結束玩家造型套用函式
+for (let ring = 0; ring < 26; ring += 1) { const radius = 0.17 + (ring % 5) * 0.1; const ripple = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.012, 5, 28), new THREE.MeshBasicMaterial({ color: ring % 2 ? "#c4edf0" : "#b3e4eb", transparent: true, opacity: 0.48 })); const angle = ring * 2.399; const radial = 13 + (ring % 5) * 1.2; ripple.rotation.x = Math.PI / 2; ripple.position.set(Math.cos(angle) * radial, -0.37, Math.sin(angle) * radial); ripple.scale.set(1.7, 0.75, 1); world.add(ripple); } // 在五座島嶼周圍點綴淡色水波
+let targetRotation = 0; // 記錄使用者拖曳後的水平旋轉目標
+let currentRotation = 0; // 記錄目前場景的水平旋轉角度
+let targetZoom = 1; // 記錄攝影機縮放目標
+let currentZoom = 1; // 記錄攝影機目前縮放比例
+let dragging = false; // 記錄是否正在拖曳場景
+let dragMode = null; // 記錄目前使用左鍵旋轉場景或右鍵調整鏡頭
+let previousX = 0; // 記錄前一個指標水平位置
+let previousY = 0; // 記錄前一個指標垂直位置
+let pointerStart = null; // 保存滑鼠起點以區分點擊與拖曳
+let hasDragged = false; // 記錄目前手勢是否已旋轉場景
+const pressedKeys = new Set(); // 保存按住的方向鍵狀態
+const playerRadius = 0.24; // 設定玩家在平台與橋面的碰撞半徑
+let destination = null; // 保存滑鼠點選或集章標籤的目的地
+let destinationQueue = []; // 保存跨島移動時經過中央公園的路徑點
+let activeDescription = "方向鍵移動，或點擊平台、橋面與上方標籤前往。"; // 設定尚未集章時的操作提示
+let labelHits = []; // 保存 p5.js 畫出的集章標籤點擊範圍
+const raycaster = new THREE.Raycaster(); // 建立滑鼠地面選取用的光線投射器
+const mouseNdc = new THREE.Vector2(); // 保存正規化裝置座標供 Raycaster 使用
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.58); // 建立平台高度的水平點擊平面
+const rayHit = new THREE.Vector3(); // 重複使用滑鼠光線與地面的交點向量
+const cameraRight = new THREE.Vector3(); // 暫存畫面右方對應的地面移動方向
+const cameraUp = new THREE.Vector3(); // 暫存畫面上方對應的地面移動方向
+const localCameraInverse = new THREE.Quaternion(); // 將攝影機方向換算回旋轉後的地圖座標
+const followTarget = new THREE.Vector3(); // 保存平滑跟隨攝影機的焦點座標
+const cameraDistance = Math.hypot(32, 42, 34); // 保持攝影機跟隨距離一致以免調角時鏡頭忽近忽遠
+let targetCameraYaw = Math.atan2(32, 34); // 設定攝影機初始水平方位角
+let currentCameraYaw = targetCameraYaw; // 保存目前平滑套用的攝影機水平方位
+let targetCameraPitch = Math.atan2(42, Math.hypot(32, 34)); // 設定攝影機初始高於水平線的俯視角
+let currentCameraPitch = targetCameraPitch; // 保存目前平滑套用的攝影機俯視角
+const cameraOffset = new THREE.Vector3(); // 暫存依鏡頭方位與仰角計算的跟隨偏移
+function updateCameraOffset() { const horizontalDistance = cameraDistance * Math.cos(currentCameraPitch); cameraOffset.set(Math.sin(currentCameraYaw) * horizontalDistance, Math.sin(currentCameraPitch) * cameraDistance, Math.cos(currentCameraYaw) * horizontalDistance); } // 依仰角與方位角更新攝影機跟隨偏移
+updateCameraOffset(); // 初始化右上方斜俯視攝影機偏移
+const zoomLabel = document.querySelector("#zoom-label"); // 取得顯示縮放比例的文字
+function setZoom(nextZoom) { targetZoom = THREE.MathUtils.clamp(nextZoom, 0.68, 5); zoomLabel.textContent = `${Math.round(targetZoom * 100)}%`; } // 將攝影機縮放上限提高至五百百分比以便近距離觀察角色
+document.querySelector("#zoom-in").addEventListener("click", () => setZoom(targetZoom * 1.2)); // 點擊加號立即放大場景
+document.querySelector("#zoom-out").addEventListener("click", () => setZoom(targetZoom / 1.2)); // 點擊減號立即縮小場景
+document.querySelector("#zoom-reset").addEventListener("click", () => { setZoom(1); targetRotation = 0; targetCameraYaw = Math.atan2(32, 34); targetCameraPitch = Math.atan2(42, Math.hypot(32, 34)); }); // 點擊重設按鈕恢復初始縮放與鏡頭方向
+document.querySelector("#camera-up").addEventListener("click", () => { targetCameraPitch = THREE.MathUtils.clamp(targetCameraPitch + 0.08, 0.06, 1.48); }); // 逐步提高俯視鏡頭並避免越過天頂
+document.querySelector("#camera-down").addEventListener("click", () => { targetCameraPitch = THREE.MathUtils.clamp(targetCameraPitch - 0.08, 0.06, 1.48); }); // 逐步降低俯視鏡頭但絕不低於水平線
+document.querySelector("#camera-left").addEventListener("click", () => { targetCameraYaw -= 0.16; }); // 將鏡頭向左環繞整個群島
+document.querySelector("#camera-right").addEventListener("click", () => { targetCameraYaw += 0.16; }); // 將鏡頭向右環繞整個群島
+const setupLayer = document.querySelector("#setup-layer"); // 取得進入者設定遮罩
+const avatarForm = document.querySelector("#avatar-form"); // 取得角色設定表單
+const settingsCancel = document.querySelector("#settings-cancel"); // 取得進入後返回漫遊的按鈕
+avatarForm.addEventListener("submit", event => { event.preventDefault(); applyAvatarSettings(); hasEntered = true; hasStarted = true; setupLayer.hidden = true; settingsCancel.hidden = true; pressedKeys.clear(); activeDescription = "方向鍵移動，或點擊平台、橋面與上方標籤前往。"; if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }); // 套用造型與寵物、關閉設定並啟用玩家控制
+document.querySelector("#settings-open").addEventListener("click", () => { hasEntered = false; pressedKeys.clear(); settingsCancel.hidden = !hasStarted; document.querySelector("#enter-world").textContent = hasStarted ? "套用設定" : "進入群島"; setupLayer.hidden = false; }); // 暫停玩家並開啟初次或再次造型設定
+settingsCancel.addEventListener("click", () => { if (!hasStarted) return; hasEntered = true; setupLayer.hidden = true; if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); }); // 取消修改時關閉設定並恢復漫遊
+window.addEventListener("keydown", event => { const editingForm = event.target instanceof HTMLElement && event.target.closest("#avatar-form"); if (event.key.toLowerCase() === "n" && !event.repeat && !editingForm) setNightMode(!nightMode); if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key) && !editingForm) { event.preventDefault(); if (hasEntered) pressedKeys.add(event.key); } }); // 以 N 鍵或介面按鈕切換日夜並只在非表單狀態接收方向鍵
+window.addEventListener("keyup", event => { pressedKeys.delete(event.key); }); // 放開方向鍵時停止該方向移動
+window.addEventListener("blur", () => pressedKeys.clear()); // 切換視窗時清除按鍵避免角色持續行走
+renderer.domElement.addEventListener("contextmenu", event => event.preventDefault()); // 阻止右鍵拖曳時瀏覽器顯示系統選單
+renderer.domElement.addEventListener("pointerdown", event => { if (event.button !== 0 && event.button !== 2) return; dragging = true; dragMode = event.button === 0 ? "world" : "camera"; hasDragged = false; pointerStart = [event.clientX, event.clientY]; previousX = event.clientX; previousY = event.clientY; renderer.domElement.setPointerCapture(event.pointerId); }); // 以左鍵旋轉群島、右鍵調整鏡頭並捕捉拖曳指標
+renderer.domElement.addEventListener("pointermove", event => { if (!dragging) return; const dx = event.clientX - previousX; const dy = event.clientY - previousY; if (pointerStart && Math.hypot(event.clientX - pointerStart[0], event.clientY - pointerStart[1]) > 5) hasDragged = true; if (hasDragged && dragMode === "world") targetRotation += dx * 0.006; if (hasDragged && dragMode === "camera") { targetCameraYaw -= dx * 0.006; targetCameraPitch = THREE.MathUtils.clamp(targetCameraPitch - dy * 0.006, 0.06, 1.48); } previousX = event.clientX; previousY = event.clientY; }); // 左拖旋轉整座群島，右拖左右環繞並上下調整仰角
+renderer.domElement.addEventListener("pointerup", event => { if (dragging && dragMode === "world" && !hasDragged && pointerStart) handleWorldClick(event.clientX, event.clientY); dragging = false; dragMode = null; pointerStart = null; }); // 左鍵點擊選取標籤或地面，拖曳結束時清除互動狀態
+renderer.domElement.addEventListener("pointercancel", () => { dragging = false; dragMode = null; pointerStart = null; }); // 指標取消時安全結束拖曳
+renderer.domElement.addEventListener("wheel", event => { event.preventDefault(); setZoom(targetZoom * (event.deltaY < 0 ? 1.12 : 1 / 1.12)); }, { passive: false }); // 滾輪向上放大、向下縮小並阻止頁面捲動
+function toRectLocal(rect, x, z) { const dx = x - rect.x; const dz = z - rect.z; const cosine = Math.cos(rect.rotation); const sine = Math.sin(rect.rotation); return { x: dx * cosine - dz * sine, z: dx * sine + dz * cosine }; } // 將世界座標轉換成旋轉矩形的本地座標
+function isWalkable(x, z, radius = playerRadius) { // 確認角色連同自身半徑都在平台或橋面矩形內
+return walkRects.some(rect => { const local = toRectLocal(rect, x, z); return Math.abs(local.x) <= rect.halfWidth - radius && Math.abs(local.z) <= rect.halfDepth - radius; }); // 角色中心距離行走矩形邊界至少保留自身半徑
+} // 結束可行走矩形範圍檢查
+function overlapsBlockRect(x, z, radius, rect) { const local = toRectLocal(rect, x, z); const nearestX = THREE.MathUtils.clamp(local.x, -rect.halfWidth, rect.halfWidth); const nearestZ = THREE.MathUtils.clamp(local.z, -rect.halfDepth, rect.halfDepth); return Math.hypot(local.x - nearestX, local.z - nearestZ) < radius; } // 以圓形角色半徑檢查其是否碰到旋轉矩形障礙
+function isBusMotionClear(nextX, nextZ, nextRotation) { // 檢查巴士整段位移與轉向是否會碰到玩家或任何路人
+let rotationDelta = nextRotation - touristBusBlock.rotation; // 計算巴士目前朝向與預計朝向的角度差
+while (rotationDelta > Math.PI) rotationDelta -= Math.PI * 2; // 將順時針轉角限制在最短旋轉方向
+while (rotationDelta < -Math.PI) rotationDelta += Math.PI * 2; // 將逆時針轉角限制在最短旋轉方向
+const characters = [player, ...walkers]; // 同時檢查可控玩家與所有自動散步的路人
+for (let sample = 1; sample <= 6; sample += 1) { const progress = sample / 6; const candidate = { x: THREE.MathUtils.lerp(touristBusBlock.x, nextX, progress), z: THREE.MathUtils.lerp(touristBusBlock.z, nextZ, progress), halfWidth: touristBusBlock.halfWidth, halfDepth: touristBusBlock.halfDepth, rotation: touristBusBlock.rotation + rotationDelta * progress }; if (characters.some(character => overlapsBlockRect(character.position.x, character.position.z, character.userData.collisionRadius || playerRadius, candidate))) return false; } // 以多個中間取樣點檢查巴士直行或轉彎的完整車身範圍
+return true; // 所有取樣位置皆未碰到角色時才允許巴士繼續行駛
+} // 結束巴士移動與角色碰撞檢查函式
+function isBlocked(x, z, radius = playerRadius) { // 檢查角色是否碰到矩形或圓形障礙物
+const hitsRect = blockRects.some(rect => overlapsBlockRect(x, z, radius, rect)); // 檢查所有建築、車輛與長椅矩形
+const hitsCircle = blockCircles.some(circle => Math.hypot(x - circle.x, z - circle.z) < radius + circle.radius); // 合併角色半徑與圓形障礙半徑計算安全距離
+return hitsRect || hitsCircle; // 任一障礙碰撞成立時阻止角色站立
+} // 結束矩形與圓形障礙檢查
+function canStand(x, z, radius = playerRadius) { return isWalkable(x, z, radius) && !isBlocked(x, z, radius); } // 只允許角色留在行走矩形且不與障礙相交
+for (let districtIndex = 0; districtIndex < platforms.length; districtIndex += 1) { const platform = platforms[districtIndex]; const placedPositions = []; for (let coinIndex = 0; coinIndex < 6; coinIndex += 1) { let point = null; for (const minimumSpacing of [3.2, 2.8, 2.4]) { for (let attempt = 0; attempt < 800 && !point; attempt += 1) { const x = platform.x + (Math.random() - 0.5) * (platform.width - 3); const z = platform.z + (Math.random() - 0.5) * (platform.depth - 3); if (canStand(x, z, player.userData.collisionRadius) && placedPositions.every(existing => Math.hypot(x - existing.x, z - existing.z) >= minimumSpacing)) point = { x, z }; } if (point) break; } if (!point) throw new Error(`無法在「${platform.name}」配置六枚可拾取金幣`); const coin = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.11, 6, 12), coinMaterial); coin.position.set(point.x, 1.08, point.z); coin.scale.setScalar(0.72); coin.castShadow = true; coin.userData.collected = false; coin.userData.platformIndex = districtIndex; world.add(coin); coins.push(coin); placedPositions.push(point); } } // 依大型玩家碰撞範圍在五座平台各自隨機配置六枚彼此分散的金幣
+const stampCountElement = document.querySelector("#stamp-count"); // 取得集章數量文字元素
+const coinCountElement = document.querySelector("#coin-count"); // 取得金幣數量文字元素
+const stampProgressElement = document.querySelector("#stamp-progress"); // 取得集章進度條填色元素
+const coinProgressElement = document.querySelector("#coin-progress"); // 取得金幣進度條填色元素
+const stampProgressTrack = document.querySelector("#stamp-progress-track"); // 取得集章進度條輔助資訊元素
+const coinProgressTrack = document.querySelector("#coin-progress-track"); // 取得金幣進度條輔助資訊元素
+function updateProgressHud() { const collectedStamps = stamps.filter(stamp => stamp.collected).length; stampCountElement.textContent = `${collectedStamps} / ${stamps.length}`; coinCountElement.textContent = `${coinScore} / ${coins.length}`; stampProgressElement.style.width = `${collectedStamps / stamps.length * 100}%`; coinProgressElement.style.width = `${coinScore / coins.length * 100}%`; stampProgressTrack.setAttribute("aria-valuenow", String(collectedStamps)); coinProgressTrack.setAttribute("aria-valuenow", String(coinScore)); } // 同步更新集章與金幣數量、進度條和輔助閱讀數值
+updateProgressHud(); // 初始化兩項進度顯示
+function tryMove(character, dx, dz) { // 以直走、沿 X 軸與沿 Z 軸三階段嘗試角色移動
+const radius = character.userData.collisionRadius || playerRadius; // 讀取角色專屬半徑並為未設定角色提供預設值
+const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.07)); // 將每次位移切成短步以降低高速穿越障礙的機率
+for (let step = 0; step < steps; step += 1) { const stepX = dx / steps; const stepZ = dz / steps; const currentX = character.position.x; const currentZ = character.position.z; const targetX = currentX + stepX; const targetZ = currentZ + stepZ; if (canStand(targetX, targetZ, radius)) { character.position.x = targetX; character.position.z = targetZ; } else { if (canStand(targetX, currentZ, radius)) character.position.x = targetX; if (canStand(character.position.x, targetZ, radius)) character.position.z = targetZ; } } // 先試原方向，受阻時依序只試 X 與 Z 方向以沿障礙滑行
+} // 結束共用角色碰撞移動函式
+function districtIndexAt(x, z) { return platforms.findIndex(platform => Math.abs(x - platform.x) <= platform.width / 2 - 0.35 && Math.abs(z - platform.z) <= platform.depth / 2 - 0.35); } // 依照各平台尺寸判斷座標所在區域
+function districtBridgeAnchor(districtIndex) { const route = bridgeRoutes[districtIndex - 1]; const dx = route.end.x - route.start.x; const dz = route.end.y - route.start.y; const length = Math.hypot(dx, dz); const inset = Math.max(0, route.endInset - 0.42); return new THREE.Vector3(route.end.x - dx / length * inset, player.position.y, route.end.y - dz / length * inset); } // 將跨島路徑終點錨定在橋面內側可站立的入口位置
+function setDestination(x, z) { // 設定平台或橋面上的滑鼠移動目的地
+if (!hasEntered || !canStand(x, z, player.userData.collisionRadius)) return; // 依放大後的玩家碰撞半徑忽略水面、平台外或障礙物內的目的地
+const target = new THREE.Vector3(x, player.position.y, z); // 建立通過有效性檢查的目標座標
+const currentDistrict = districtIndexAt(player.position.x, player.position.z); // 取得角色目前所在平台編號
+const targetDistrict = districtIndexAt(x, z); // 取得點選目標所在平台編號
+destinationQueue = []; // 清除上一次指令留下的路徑點
+if (targetDistrict >= 0 && targetDistrict !== currentDistrict) { const hubCenter = new THREE.Vector3(0, player.position.y, 0); if (currentDistrict > 0) { destination = districtBridgeAnchor(currentDistrict); destinationQueue.push(hubCenter); } else destination = hubCenter; if (targetDistrict > 0) destinationQueue.push(districtBridgeAnchor(targetDistrict)); destinationQueue.push(target); } else destination = target; // 從平台或橋面跨區時先回中央廣場，再沿目的橋面抵達目標
+} // 結束目的地設定函式
+function handleWorldClick(clientX, clientY) { // 處理 p5 標籤點擊或 Three.js 地面 Raycaster 點擊
+if (!hasEntered) return; // 角色完成初始設定前不接受場景移動指令
+const bounds = renderer.domElement.getBoundingClientRect(); // 取得 Three.js 畫布在視窗中的位置
+const pointerX = clientX - bounds.left; // 換算滑鼠相對畫布的水平座標
+const pointerY = clientY - bounds.top; // 換算滑鼠相對畫布的垂直座標
+const labelHit = labelHits.find(hit => pointerX >= hit.left && pointerX <= hit.right && pointerY >= hit.top && pointerY <= hit.bottom); // 優先檢查 p5.js 畫出的集章標籤
+if (labelHit) { setDestination(labelHit.stamp.position.x, labelHit.stamp.position.z); return; } // 點選膠囊標籤時將玩家導向該集章圈
+mouseNdc.set(pointerX / bounds.width * 2 - 1, -(pointerY / bounds.height) * 2 + 1); // 將畫布座標轉成 Raycaster 使用的標準座標
+raycaster.setFromCamera(mouseNdc, camera); // 從攝影機朝滑鼠位置發射射線
+world.updateMatrixWorld(true); // 確保旋轉後群島的座標矩陣已更新
+if (raycaster.ray.intersectPlane(groundPlane, rayHit)) { const localHit = world.worldToLocal(rayHit.clone()); setDestination(localHit.x, localHit.z); } // 將地面交點轉回地圖座標並設定目的地
+} // 結束滑鼠地面與標籤點擊處理
+function updatePlayer(deltaTime, time) { // 更新方向鍵、滑鼠移動、碰撞與玩家步態
+if (!hasEntered) return; // 設定面板開啟或尚未進入時暫停玩家、步態與集章判定
+if (currentPet) { currentPet.position.y = -0.18 + Math.sin(time * 6) * 0.025; currentPet.rotation.y = Math.sin(time * 3) * 0.06; } // 讓同行小動物隨玩家輕柔起伏與搖擺
+let horizontal = 0; // 記錄畫面左右方向鍵輸入
+let vertical = 0; // 記錄畫面上下方向鍵輸入
+if (pressedKeys.has("ArrowLeft")) horizontal -= 1; // 將左方向鍵轉成畫面左移
+if (pressedKeys.has("ArrowRight")) horizontal += 1; // 將右方向鍵轉成畫面右移
+if (pressedKeys.has("ArrowUp")) vertical += 1; // 將上方向鍵轉成畫面上移
+if (pressedKeys.has("ArrowDown")) vertical -= 1; // 將下方向鍵轉成畫面下移
+let movement = new THREE.Vector3(); // 建立本影格的地圖座標移動向量
+if (horizontal !== 0 || vertical !== 0) { destination = null; destinationQueue = []; cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion); cameraRight.y = 0; cameraRight.normalize(); cameraUp.set(0, 1, 0).applyQuaternion(camera.quaternion); cameraUp.y = 0; cameraUp.normalize(); localCameraInverse.copy(world.quaternion).invert(); cameraRight.applyQuaternion(localCameraInverse); cameraUp.applyQuaternion(localCameraInverse); const viewDirection = new THREE.Vector3().addScaledVector(cameraRight, horizontal).addScaledVector(cameraUp, vertical).normalize(); let bestAlignment = -Infinity; let bestX = 0; let bestZ = 0; for (const route of bridgeRoutes) { const routeLength = Math.hypot(route.end.x, route.end.y); for (const sign of [-1, 1]) { const directionX = route.end.x / routeLength * sign; const directionZ = route.end.y / routeLength * sign; const alignment = viewDirection.x * directionX + viewDirection.z * directionZ; if (alignment > bestAlignment) { bestAlignment = alignment; bestX = directionX; bestZ = directionZ; } } } movement.set(bestX, 0, bestZ).multiplyScalar(3.1 * deltaTime); } // 將斜視角輸入對齊最近的橋樑方向，讓方向鍵能沿橋走到四座主題平台
+else if (destination) { movement.set(destination.x - player.position.x, 0, destination.z - player.position.z); const remaining = movement.length(); if (remaining < 0.16) { tryMove(player, movement.x, movement.z); if (Math.hypot(destination.x - player.position.x, destination.z - player.position.z) < 0.16 && canStand(destination.x, destination.z, player.userData.collisionRadius)) { player.position.x = destination.x; player.position.z = destination.z; destination = destinationQueue.shift() || null; } movement.set(0, 0, 0); } else movement.normalize().multiplyScalar(Math.min(3.1 * deltaTime, remaining)); } // 到達路徑點後透過碰撞移動並接續下一站，否則持續前往目前目標
+if (movement.lengthSq() > 0) { const previousX = player.position.x; const previousZ = player.position.z; tryMove(player, movement.x, movement.z); const movedX = player.position.x - previousX; const movedZ = player.position.z - previousZ; if (Math.hypot(movedX, movedZ) > 0.0001) player.rotation.y = Math.atan2(movedX, movedZ); animateWalk(player, time, true); } // 透過共用碰撞函式移動玩家並依實際位移轉向及驅動步態動畫
+else { const parts = player.userData.walkParts; for (let side = 0; side < 2; side += 1) { parts.shoulders[side].rotation.x = 0; parts.elbows[side].rotation.x = 0; parts.hips[side].rotation.x = 0; parts.knees[side].rotation.x = 0; } } // 停下時將四肢關節回復自然站姿
+for (const stamp of stamps) { if (!stamp.collected && Math.hypot(player.position.x - stamp.position.x, player.position.z - stamp.position.z) <= 0.82) { stamp.collected = true; stamp.fill.material.color.set("#77bd82"); stamp.fill.material.opacity = 0.28; stamp.ring.material.color.set("#4eaa6d"); activeDescription = stamp.description; updateProgressHud(); if (destination && Math.hypot(destination.x - stamp.position.x, destination.z - stamp.position.z) < 0.16) destination = destinationQueue.shift() || null; } } // 走進地面圓圈時蓋章、轉綠、更新介面並顯示地點介紹
+for (const coin of coins) { if (!coin.userData.collected && Math.hypot(player.position.x - coin.position.x, player.position.z - coin.position.z) < 0.9) { coin.userData.collected = true; coin.visible = false; coinScore += 1; activeDescription = `撿到一枚金幣！目前共有 ${coinScore} 枚。`; updateProgressHud(); } } // 角色走近金幣時將其隱藏、增加分數並更新介面說明
+} // 結束玩家每影格更新函式
+function onResize() { // 依照視窗尺寸更新正交攝影機與畫布
+const aspect = window.innerWidth / window.innerHeight; // 計算視窗目前的長寬比例
+const halfHeight = 50; // 配合放大後的群島範圍維持完整的初始攝影畫面
+camera.left = -halfHeight * aspect; // 更新攝影機左側可視邊界
+camera.right = halfHeight * aspect; // 更新攝影機右側可視邊界
+camera.top = halfHeight; // 更新攝影機上側可視邊界
+camera.bottom = -halfHeight; // 更新攝影機下側可視邊界
+camera.updateProjectionMatrix(); // 套用新的正交投影矩陣
+renderer.setSize(window.innerWidth, window.innerHeight); // 依照視窗尺寸重設 WebGL 畫布
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 維持清晰畫質並限制像素比例
+} // 結束視窗尺寸更新函式
+window.addEventListener("resize", onResize); // 在視窗尺寸變更時更新畫面
+onResize(); // 頁面首次載入時立即同步畫布與攝影機比例
+const p5Sketch = new p5(p => { // 以 p5.js 實例模式作為互動場景的主迴圈
+p.setup = () => { p.createCanvas(window.innerWidth, window.innerHeight); p.textFont("Microsoft JhengHei"); p.textSize(12); p.canvas.style.pointerEvents = "none"; }; // 建立透明全螢幕 HUD 畫布並避免阻擋地面點擊
+p.windowResized = () => { p.resizeCanvas(window.innerWidth, window.innerHeight); onResize(); }; // 視窗尺寸改變時同步調整 p5 與 Three.js 畫布
+p.draw = () => { // 每個 p5 繪圖影格負責更新角色、攝影機、場景與介面
+const deltaTime = Math.min(p.deltaTime / 1000, 0.05); // 限制單影格時間避免切回頁面時角色瞬移
+const time = p.millis() / 1000; // 取得 p5 主迴圈的秒數時間
+walkers.forEach(chibi => animateWalk(chibi, time)); // 在 p5 主迴圈中更新所有路人的關節步態與路線
+rideWheels.forEach(wheel => { wheel.rotation.z += deltaTime * 0.12; for (const cabin of wheel.userData.cabins) cabin.rotation.z = -wheel.rotation.z; }); // 讓摩天輪輪圈轉動並保持所有觀景艙直立
+let nextBusSegmentIndex = busSegmentIndex; // 暫存巴士預計駛入的道路路段編號
+let nextBusSegmentProgress = busSegmentProgress + deltaTime * 3.2; // 計算巴士本影格預計前進的道路距離
+while (nextBusSegmentProgress >= busSegments[nextBusSegmentIndex].length) { nextBusSegmentProgress -= busSegments[nextBusSegmentIndex].length; nextBusSegmentIndex = (nextBusSegmentIndex + 1) % busSegments.length; } // 到達站點時暫存下一段路線而不立刻移動巴士
+const nextBusSegment = busSegments[nextBusSegmentIndex]; // 取得巴士預計行駛的下一段道路
+const nextBusProgress = nextBusSegmentProgress / nextBusSegment.length; // 換算巴士在預計路段上的行駛比例
+const nextBusX = THREE.MathUtils.lerp(nextBusSegment.start.x, nextBusSegment.end.x, nextBusProgress); // 計算巴士預計到達的地圖水平座標
+const nextBusZ = THREE.MathUtils.lerp(nextBusSegment.start.y, nextBusSegment.end.y, nextBusProgress); // 計算巴士預計到達的地圖深度座標
+const nextBusRotation = Math.atan2(nextBusSegment.end.x - nextBusSegment.start.x, nextBusSegment.end.y - nextBusSegment.start.y); // 計算巴士預計轉向的車頭角度
+if (isBusMotionClear(nextBusX, nextBusZ, nextBusRotation)) { busSegmentIndex = nextBusSegmentIndex; busSegmentProgress = nextBusSegmentProgress; touristBus.position.set(nextBusX, 0.58, nextBusZ); touristBus.rotation.y = nextBusRotation; touristBusBlock.x = nextBusX; touristBusBlock.z = nextBusZ; touristBusBlock.rotation = nextBusRotation; } // 確認車身與轉彎軌跡皆無角色後才同步更新巴士路線與碰撞範圍
+for (const coin of coins) { if (!coin.userData.collected) coin.rotation.y += deltaTime * 1.8; } // 讓尚未收集的金幣在各平台上持續旋轉
+nightBlend += (Number(nightMode) - nightBlend) * (1 - Math.exp(-deltaTime * 2.4)); // 以指數緩動平順切換日夜色彩
+scene.background.copy(daySkyColor).lerp(nightSkyColor, nightBlend); // 逐影格混合日間天空與夜間淺灰背景
+scene.fog.color.copy(scene.background); // 讓遠景霧色與當前天空日夜色調一致
+water.material.color.copy(dayWaterColor).lerp(nightWaterColor, nightBlend); // 逐影格將全螢幕背景過渡至夜間淺灰色並在白天恢復淡藍綠色
+water.material.emissive.copy(dayWaterEmissive).lerp(nightWaterEmissive, nightBlend); // 以夜間自發光補償環境變暗，確保全螢幕水色仍為淺灰
+water.material.emissiveIntensity = nightBlend; // 平順調整水面夜間補光強度
+hemi.intensity = THREE.MathUtils.lerp(2.05, 0.42, nightBlend); // 平滑降低夜間環境光照亮度
+sun.intensity = THREE.MathUtils.lerp(3.1, 0.16, nightBlend); // 平滑降低夜間方向日光強度
+for (const lampHead of lampHeads) { lampHead.material.color.copy(dayLampColor).lerp(nightLampColor, nightBlend); lampHead.material.emissiveIntensity = THREE.MathUtils.lerp(0.3, 4.8, nightBlend); lampHead.userData.lampLight.intensity = nightBlend * 5.2; } // 平順將夜間燈頭與地面照明提升到明顯高於日間的亮度
+currentRotation += (targetRotation - currentRotation) * 0.08; // 平滑套用滑鼠拖曳的場景旋轉
+currentZoom += (targetZoom - currentZoom) * 0.12; // 平滑套用按鈕或滾輪縮放
+currentCameraYaw += (targetCameraYaw - currentCameraYaw) * 0.1; // 平滑套用鏡頭水平環繞方位
+currentCameraPitch += (targetCameraPitch - currentCameraPitch) * 0.1; // 平滑套用鏡頭仰角且維持水平線以上
+updateCameraOffset(); // 依最新的鏡頭方位與仰角更新跟隨偏移
+world.rotation.y = currentRotation; // 更新群島旋轉角度
+world.updateMatrixWorld(true); // 更新旋轉後的地圖世界矩陣
+let playerWorld = world.localToWorld(player.position.clone()); // 取得玩家在場景世界中的位置
+followTarget.lerp(playerWorld, 1 - Math.exp(-deltaTime * 4.2)); // 以指數緩動平滑跟隨玩家
+camera.position.copy(followTarget).add(cameraOffset); // 讓攝影機維持斜俯視偏移並跟隨焦點
+camera.lookAt(followTarget); // 將攝影機朝向平滑跟隨焦點
+camera.zoom = currentZoom; // 套用目前的正交攝影機縮放比例
+camera.updateProjectionMatrix(); // 更新攝影機投影矩陣
+camera.updateMatrixWorld(true); // 更新攝影機方向供鍵盤與 Raycaster 使用
+updatePlayer(deltaTime, time); // 以方向鍵或滑鼠目的地更新玩家與集章狀態
+world.updateMatrixWorld(true); // 更新玩家移動後的群島與公仔座標
+playerWorld = world.localToWorld(player.position.clone()); // 取得移動後的玩家世界座標
+followTarget.lerp(playerWorld, 1 - Math.exp(-deltaTime * 4.2)); // 讓攝影機在同一影格開始跟上角色
+camera.position.copy(followTarget).add(cameraOffset); // 更新平滑跟隨後的攝影機位置
+camera.lookAt(followTarget); // 持續將攝影機對準玩家
+camera.updateMatrixWorld(true); // 確保本影格投影與光線投射使用最新矩陣
+renderer.render(scene, camera); // 由 p5 主迴圈驅動 Three.js 場景繪製
+p.clear(); // 清除 HUD 畫布但保留透明背景
+labelHits = []; // 重建本影格的標籤點擊範圍
+for (let index = 0; index < stamps.length; index += 1) { const stamp = stamps[index]; const labelPosition = stamp.position.clone(); labelPosition.y = 2.45; world.localToWorld(labelPosition); labelPosition.project(camera); if (labelPosition.z < -1 || labelPosition.z > 1) continue; const screenX = (labelPosition.x * 0.5 + 0.5) * p.width; const screenY = (-labelPosition.y * 0.5 + 0.5) * p.height; if (screenX < -100 || screenX > p.width + 100 || screenY < -50 || screenY > p.height + 50) continue; const label = `${String(index + 1).padStart(2, "0")}  ${stamp.name}${stamp.collected ? " ✓" : ""}`; p.textSize(12); const labelWidth = p.textWidth(label) + 26; p.noStroke(); p.fill(35, 75, 79, 45); p.rect(screenX - labelWidth / 2, screenY - 12, labelWidth, 29, 15); p.fill(255, 248); p.rect(screenX - labelWidth / 2, screenY - 14, labelWidth, 29, 15); p.fill(stamp.collected ? "#43825c" : "#315c62"); p.textAlign(p.CENTER, p.CENTER); p.text(label, screenX, screenY); labelHits.push({ left: screenX - labelWidth / 2, right: screenX + labelWidth / 2, top: screenY - 15, bottom: screenY + 15, stamp }); } // 投影白色膠囊集章標籤並記錄其點擊範圍
+const collectedCount = stamps.filter(stamp => stamp.collected).length; // 計算目前已完成的集章數量
+if (collectedCount === stamps.length) { p.fill(255, 245); p.rect(p.width / 2 - 180, 124, 360, 46, 23); p.fill("#38845c"); p.textAlign(p.CENTER, p.CENTER); p.textSize(16); p.text("遊樂園冒險完成！五枚印章全數到手", p.width / 2, 147); } // 全部集滿時在標題下方顯示完成訊息
+const infoWidth = Math.min(460, p.width - 36); p.fill(250, 255, 255, 230); p.rect(p.width / 2 - infoWidth / 2, p.height - 143, infoWidth, 42, 21); p.fill("#486d70"); p.textAlign(p.CENTER, p.CENTER); p.textSize(p.width < 460 ? 10 : 12); p.text(activeDescription, p.width / 2, p.height - 122); // 將操作提示或已蓋章說明移到縮放列上方避免重疊
+}; // 結束 p5.js 主繪圖迴圈
+}, document.querySelector("#overlay-host")); // 將 p5 實例掛載到透明介面圖層
+} catch (error) { // 捕捉初始化問題並提供明確回饋
+console.error("浮光群島場景初始化失敗：", error); // 將完整錯誤資訊記錄到開發者主控台
+errorBox.textContent = "場景載入失敗，請確認網路連線並使用本機伺服器開啟此頁面。"; // 告知使用者如何排除載入問題
+errorBox.style.display = "block"; // 顯示場景載入錯誤
+} // 結束錯誤處理
+</script><!-- 結束 Three.js 場景程式 -->
+</body><!-- 結束頁面內容 -->
+</html><!-- 結束 HTML 文件 -->
